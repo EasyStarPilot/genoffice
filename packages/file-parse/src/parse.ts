@@ -2,6 +2,9 @@ import { readFile } from 'node:fs/promises'
 import { extname } from 'node:path'
 import { docToText } from './doc'
 import { docxToText } from './docx'
+import { odpToText } from './odp'
+import { odsToText } from './ods'
+import { odtToText } from './odt'
 import { pdfToText } from './pdf'
 import { pptToText } from './ppt'
 import { pptxToText } from './pptx'
@@ -61,6 +64,12 @@ export async function parseFileToText(filePath: string): Promise<ParsedFile> {
       case 'xlsx':
       case 'xlsm':
         return { ok: true, kind: 'text', text: await xlsxToText(await readFile(filePath)) }
+      case 'odt':
+        return { ok: true, kind: 'text', text: await odtToText(await readFile(filePath)) }
+      case 'odp':
+        return { ok: true, kind: 'text', text: await odpToText(await readFile(filePath)) }
+      case 'ods':
+        return { ok: true, kind: 'text', text: await odsToText(await readFile(filePath)) }
       case 'pdf':
         return { ok: true, kind: 'text', text: await pdfToText(await readFile(filePath)) }
     }

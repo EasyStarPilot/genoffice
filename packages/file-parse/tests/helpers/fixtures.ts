@@ -152,6 +152,79 @@ export async function buildXlsxFixture(): Promise<Uint8Array> {
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
 }
 
+/** minimal odt content.xml: heading + paragraph + 2x2 table (mirrors buildDocxFixture) */
+export async function buildOdtFixture(): Promise<Uint8Array> {
+  const zip = new JSZip()
+  zip.file(
+    'content.xml',
+    `${XML_DECL}<office:document-content ` +
+      'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" ' +
+      'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" ' +
+      'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">' +
+      '<office:body><office:text>' +
+      '<text:h text:outline-level="1">Annual Report</text:h>' +
+      '<text:p>First paragraph hello odt</text:p>' +
+      '<table:table><table:table-row>' +
+      '<table:table-cell><text:p>Metric</text:p></table:table-cell>' +
+      '<table:table-cell><text:p>Value</text:p></table:table-cell>' +
+      '</table:table-row><table:table-row>' +
+      '<table:table-cell><text:p>Revenue</text:p></table:table-cell>' +
+      '<table:table-cell><text:p>100</text:p></table:table-cell>' +
+      '</table:table-row></table:table>' +
+      '</office:text></office:body></office:document-content>',
+  )
+  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
+}
+
+/** minimal odp content.xml: 3 pages, incl. a line-break and a custom-shape's own direct text:p (mirrors buildPptxFixture's slide3) */
+export async function buildOdpFixture(): Promise<Uint8Array> {
+  const zip = new JSZip()
+  zip.file(
+    'content.xml',
+    `${XML_DECL}<office:document-content ` +
+      'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" ' +
+      'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" ' +
+      'xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0">' +
+      '<office:body><office:presentation>' +
+      '<draw:page draw:name="page1">' +
+      '<draw:frame><draw:text-box><text:p>Product Intro</text:p><text:p>First slide subtitle</text:p></draw:text-box></draw:frame>' +
+      '</draw:page>' +
+      '<draw:page draw:name="page2">' +
+      '<draw:custom-shape><text:p>Market Analysis</text:p></draw:custom-shape>' +
+      '</draw:page>' +
+      '<draw:page draw:name="page3">' +
+      '<draw:frame><draw:text-box>' +
+      '<text:p>Before<text:line-break/><text:line-break/>After</text:p>' +
+      '</draw:text-box></draw:frame>' +
+      '</draw:page>' +
+      '</office:presentation></office:body></office:document-content>',
+  )
+  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
+}
+
+/** minimal ods content.xml: one named sheet, incl. a skipped/empty cell (mirrors buildXlsxFixture) */
+export async function buildOdsFixture(): Promise<Uint8Array> {
+  const zip = new JSZip()
+  zip.file(
+    'content.xml',
+    `${XML_DECL}<office:document-content ` +
+      'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" ' +
+      'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" ' +
+      'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">' +
+      '<office:body><office:spreadsheet>' +
+      '<table:table table:name="Grades"><table:table-row>' +
+      '<table:table-cell><text:p>Name</text:p></table:table-cell>' +
+      '<table:table-cell><text:p>Scores</text:p></table:table-cell>' +
+      '</table:table-row><table:table-row>' +
+      '<table:table-cell><text:p>Alice</text:p></table:table-cell>' +
+      '<table:table-cell><text:p>95</text:p></table:table-cell>' +
+      '<table:table-cell table:number-columns-repeated="1000"/>' +
+      '</table:table-row></table:table>' +
+      '</office:spreadsheet></office:body></office:document-content>',
+  )
+  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
+}
+
 /** minimal single-page pdf with an uncompressed content stream and a correct xref table */
 export function buildPdfFixture(text: string): Uint8Array {
   const stream = `BT /F1 24 Tf 72 720 Td (${text}) Tj ET`
