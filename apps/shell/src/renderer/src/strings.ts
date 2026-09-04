@@ -158,6 +158,9 @@ export const strings = {
     setAiTesting: '测试中…',
     setAiTestOk: '连接成功',
     setAiTestFail: '连接失败',
+    setAiSearchModels: '搜索模型…',
+    setAiFetchingModels: '正在加载模型…',
+    setAiModelsFetchFail: '无法加载模型列表',
     setAiMaxTokens: '单次输出上限（tokens）',
     setAiMaxTokensDesc:
       '一次回合的输出预算。推理模型会先消耗预算用于思考，预算用完时回复可能变成空白，遇到这种情况请调大此项。',
@@ -357,6 +360,9 @@ export const strings = {
     setAiTesting: 'Testing…',
     setAiTestOk: 'Connection OK',
     setAiTestFail: 'Connection failed',
+    setAiSearchModels: 'Search models…',
+    setAiFetchingModels: 'Loading models…',
+    setAiModelsFetchFail: "Couldn't load models",
     setAiMaxTokens: 'Max output tokens',
     setAiMaxTokensDesc:
       'Output budget for one turn. Reasoning models spend part of it thinking, so an answer can come back empty once the budget runs out; raise this value if that happens.',
@@ -571,6 +577,9 @@ export const strings = {
     setAiTesting: 'テスト中…',
     setAiTestOk: '接続に成功しました',
     setAiTestFail: '接続に失敗しました',
+    setAiSearchModels: 'モデルを検索…',
+    setAiFetchingModels: 'モデルを読み込み中…',
+    setAiModelsFetchFail: 'モデルを読み込めませんでした',
     setAiMaxTokens: '1 回あたりの出力トークン上限',
     setAiMaxTokensDesc:
       '1 ターンの出力予算です。推論モデルは思考に消費するため、耗尽すると返信が空になります。その場合は値を大きくしてください。',
@@ -782,6 +791,9 @@ export const strings = {
     setAiTesting: '테스트 중…',
     setAiTestOk: '연결 성공',
     setAiTestFail: '연결 실패',
+    setAiSearchModels: '모델 검색…',
+    setAiFetchingModels: '모델 불러오는 중…',
+    setAiModelsFetchFail: '모델을 불러오지 못했습니다',
     setAiMaxTokens: '턴당 출력 토큰 상한',
     setAiMaxTokensDesc:
       '한 턴의 출력 예산입니다. 추론 모델은 생각하는 데 소모하므로 예산이 떨어지면 응답이 비어 올 수 있습니다. 그럴 때 값을 키우세요.',
@@ -998,6 +1010,9 @@ export const strings = {
     setAiTesting: 'Test en cours…',
     setAiTestOk: 'Connexion réussie',
     setAiTestFail: 'Échec de la connexion',
+    setAiSearchModels: 'Rechercher des modèles…',
+    setAiFetchingModels: 'Chargement des modèles…',
+    setAiModelsFetchFail: 'Impossible de charger les modèles',
     setAiMaxTokens: 'Jetons de sortie max.',
     setAiMaxTokensDesc:
       'Budget de sortie pour un tour. Les modèles à raisonnement le dépensent en réflexion ; quand il est épuisé, la réponse arrive vide : augmentez cette valeur.',
@@ -1216,6 +1231,9 @@ export const strings = {
     setAiTesting: 'Wird getestet…',
     setAiTestOk: 'Verbindung erfolgreich',
     setAiTestFail: 'Verbindung fehlgeschlagen',
+    setAiSearchModels: 'Modelle suchen…',
+    setAiFetchingModels: 'Modelle werden geladen…',
+    setAiModelsFetchFail: 'Modelle konnten nicht geladen werden',
     setAiMaxTokens: 'Max. Ausgabe-Tokens',
     setAiMaxTokensDesc:
       'Ausgabe-Budget pro Durchlauf. Denk-Modelle verbrauchen es beim Reasoning; ist es erschöpft, kommt eine leere Antwort zurück — dann diesen Wert erhöhen.',
@@ -1433,6 +1451,9 @@ export const strings = {
     setAiTesting: 'Probando…',
     setAiTestOk: 'Conexión correcta',
     setAiTestFail: 'Error de conexión',
+    setAiSearchModels: 'Buscar modelos…',
+    setAiFetchingModels: 'Cargando modelos…',
+    setAiModelsFetchFail: 'No se pudieron cargar los modelos',
     setAiMaxTokens: 'Tokens de salida máx.',
     setAiMaxTokensDesc:
       'Presupuesto de salida por turno. Los modelos de razonamiento lo gastan en pensar; si se agota, la respuesta llega vacía: suba este valor.',
@@ -1644,6 +1665,9 @@ export const strings = {
     setAiTesting: 'กำลังทดสอบ…',
     setAiTestOk: 'เชื่อมต่อสำเร็จ',
     setAiTestFail: 'การเชื่อมต่อล้มเหลว',
+    setAiSearchModels: 'ค้นหาโมเดล…',
+    setAiFetchingModels: 'กำลังโหลดโมเดล…',
+    setAiModelsFetchFail: 'โหลดรายการโมเดลไม่สำเร็จ',
     setAiMaxTokens: 'จำนวนโทเคนขาออกสูงสุด',
     setAiMaxTokensDesc:
       'งบผลลัพท์ต่อหนึ่งรอบ โมเดลท่ีไตร่ตรองจะใช้ส่วนหนึ่่งไปกบการคิด หากงบหมด คำตอบจะกลบมาเปลา ให้เพิ่มคา่นี',
@@ -1856,6 +1880,9 @@ export const strings = {
     setAiTesting: 'Menguji…',
     setAiTestOk: 'Koneksi berhasil',
     setAiTestFail: 'Koneksi gagal',
+    setAiSearchModels: 'Cari model…',
+    setAiFetchingModels: 'Memuat model…',
+    setAiModelsFetchFail: 'Gagal memuat model',
     setAiMaxTokens: 'Token keluaran maks.',
     setAiMaxTokensDesc:
       'Anggaran keluaran untuk satu giliran. Model penalaran memakainya untuk berpikir; jika habis, balasan datang kosong — naikkan nilai ini.',
@@ -2069,6 +2096,9 @@ export const strings = {
     setAiTesting: 'Проверка…',
     setAiTestOk: 'Подключение успешно',
     setAiTestFail: 'Ошибка подключения',
+    setAiSearchModels: 'Поиск моделей…',
+    setAiFetchingModels: 'Загрузка моделей…',
+    setAiModelsFetchFail: 'Не удалось загрузить модели',
     setAiMaxTokens: 'Макс. токенов на ответ',
     setAiMaxTokensDesc:
       'Бюджет вывода за один ход. Модели рассуждений тратят его на размышления: если бюджет иссякнет, ответ придёт пустым — увеличьте значение.',
@@ -2280,6 +2310,9 @@ export const strings = {
     setAiTesting: 'جارٍ الاختبار…',
     setAiTestOk: 'نجح الاتصال',
     setAiTestFail: 'فشل الاتصال',
+    setAiSearchModels: 'البحث عن النماذج…',
+    setAiFetchingModels: 'جارٍ تحميل النماذج…',
+    setAiModelsFetchFail: 'تعذّر تحميل النماذج',
     setAiMaxTokens: 'الحد الأقصى لرموز المخرجات',
     setAiMaxTokensDesc:
       'ميزانية الإخراج في الدورة الواحدة. نماذج الاستدلال تصرفها على التفكير، فإذا نفدت جاء الرد فارغًا؛ ارفع هذه القيمة عندئذ.',
@@ -2485,6 +2518,9 @@ export const strings = {
     setAiTesting: 'Testando…',
     setAiTestOk: 'Conexão bem-sucedida',
     setAiTestFail: 'Falha na conexão',
+    setAiSearchModels: 'Pesquisar modelos…',
+    setAiFetchingModels: 'Carregando modelos…',
+    setAiModelsFetchFail: 'Não foi possível carregar os modelos',
     setAiMaxTokens: 'Máx. de tokens de saída',
     setAiMaxTokensDesc:
       'Orçamento de saída por turno. Modelos de raciocínio gastam-no pensando; se esgotar, a resposta vem vazia — aumente este valor.',
@@ -2689,6 +2725,9 @@ export const strings = {
     setAiTesting: 'Test in corso…',
     setAiTestOk: 'Connessione riuscita',
     setAiTestFail: 'Connessione non riuscita',
+    setAiSearchModels: 'Cerca modelli…',
+    setAiFetchingModels: 'Caricamento modelli…',
+    setAiModelsFetchFail: 'Impossibile caricare i modelli',
     setAiMaxTokens: 'Token di output massimi',
     setAiMaxTokensDesc:
       'Budget di uscita per singolo turno. I modelli di ragionamento lo consumano pensando: se si esaurisce, la risposta arriva vuota; aumentalo.',
@@ -2892,6 +2931,9 @@ export const strings = {
     setAiTesting: 'Testowanie…',
     setAiTestOk: 'Połączenie działa',
     setAiTestFail: 'Połączenie nie powiodło się',
+    setAiSearchModels: 'Szukaj modeli…',
+    setAiFetchingModels: 'Ładowanie modeli…',
+    setAiModelsFetchFail: 'Nie udało się załadować modeli',
     setAiMaxTokens: 'Maks. tokeny wyjścia',
     setAiMaxTokensDesc:
       'Budżet wyjścia na jedną turę. Modele rozumowania zużywają go na myślenie; gdy się wyczerpie, odpowiedź przychodzi pusta — zwiększ tę wartość.',
@@ -3096,6 +3138,9 @@ export const strings = {
     setAiTesting: 'Testen…',
     setAiTestOk: 'Verbinding geslaagd',
     setAiTestFail: 'Verbinding mislukt',
+    setAiSearchModels: 'Modellen zoeken…',
+    setAiFetchingModels: 'Modellen laden…',
+    setAiModelsFetchFail: 'Kan modellen niet laden',
     setAiMaxTokens: 'Max. outputtokens',
     setAiMaxTokensDesc:
       'Uitvoerbudget voor één beurt. Redeneermodellen geven dit uit aan denken; is het op, dan komt een leeg antwoord terug — verhoog deze waarde.',
@@ -3299,6 +3344,9 @@ export const strings = {
     setAiTesting: 'Menguji…',
     setAiTestOk: 'Sambungan berjaya',
     setAiTestFail: 'Sambungan gagal',
+    setAiSearchModels: 'Cari model…',
+    setAiFetchingModels: 'Memuatkan model…',
+    setAiModelsFetchFail: 'Gagal memuatkan model',
     setAiMaxTokens: 'Token output maks.',
     setAiMaxTokensDesc:
       'Belanjawan output untuk satu pusingan. Model penaakulan menghabiskannya untuk berfikir; jika habis, balasan datang kosong — tingkatkan nilai ini.',
@@ -3499,6 +3547,9 @@ export const strings = {
     setAiTesting: 'בודק…',
     setAiTestOk: 'החיבור תקין',
     setAiTestFail: 'החיבור נכשל',
+    setAiSearchModels: 'חיפוש מודלים…',
+    setAiFetchingModels: 'טוען מודלים…',
+    setAiModelsFetchFail: 'טעינת המודלים נכשלה',
     setAiMaxTokens: 'מקסימום טוקנים לתשובה',
     setAiMaxTokensDesc:
       'תקן פלט לסיבוב אחד. מודלי נימוק מבזבזים אותו על מחשבה, ואם הוא נגמר התשובה חוזרת ריקה — העלו את הערך.',
@@ -3701,6 +3752,9 @@ export const strings = {
     setAiTesting: 'परख रहे हैं…',
     setAiTestOk: 'कनेक्शन सफल',
     setAiTestFail: 'कनेक्शन विफल',
+    setAiSearchModels: 'मॉडल खोजें…',
+    setAiFetchingModels: 'मॉडल लोड हो रहे हैं…',
+    setAiModelsFetchFail: 'मॉडल लोड नहीं हो सके',
     setAiMaxTokens: 'अधिकतम आउटपुट टोकन',
     setAiMaxTokensDesc:
       'एक मोड़ का आउटपुट बजट। तरक मॉडल इसमें से क्छ हिस्सा सोचने पर खरच करते हैं; बजट खत्म होने पर उत्तर खाली आ सकता है — ज़रूरत पर इसे बढ़ाएँ।',
@@ -3898,6 +3952,9 @@ export const strings = {
     setAiTesting: '測試中…',
     setAiTestOk: '連線成功',
     setAiTestFail: '連線失敗',
+    setAiSearchModels: '搜尋模型…',
+    setAiFetchingModels: '正在載入模型…',
+    setAiModelsFetchFail: '無法載入模型清單',
     setAiMaxTokens: '單次輸出上限（tokens）',
     setAiMaxTokensDesc:
       '一次回合的輸出預算。推理模型會先消耗預算用於思考，預算用畢時回覆可能變成空白，遇到此情況請調高本項。',

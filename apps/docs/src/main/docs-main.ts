@@ -57,11 +57,14 @@ import {
   defaultAiSettings,
   activeProvider,
   cloudToolsEnabled,
+  fetchProviderModels,
   resolveAiSettings,
   maxOutputTokensOf,
   setRescueFetch,
   streamForProvider,
   type AiChatRequest,
+  type AiProviderConfig,
+  type AiProviderId,
   type AiSettings,
   type AiStreamChunk,
   type AiStreamRequest,
@@ -2658,6 +2661,12 @@ export function registerAiIpc(): void {
   ipcMain.handle('ai:set-settings', (_event, settings: AiSettings) => {
     writeJson(SETTINGS_PATH(), settings)
   })
+
+  ipcMain.handle(
+    'ai:fetch-models',
+    (_event, provider: AiProviderId, config: AiProviderConfig) =>
+      fetchProviderModels(provider, config),
+  )
 
   ipcMain.handle('ai:stream', async (event, request: AiStreamRequest) => {
     const { requestId, settings, system, messages } = request

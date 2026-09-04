@@ -102,6 +102,27 @@ function MinimaxLogo() {
   )
 }
 
+/** simple original llama-silhouette glyph — monochrome, currentColor, no brand asset traced */
+function OllamaLogo() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8 8.5c-.8-2-.5-4 .5-5M16 8.5c.8-2 .5-4-.5-5" />
+      <path d="M6.5 10.5a5.5 5.5 0 0 1 11 0v3a5.5 5.5 0 0 1-11 0v-3Z" />
+      <circle cx="9.7" cy="11.2" r=".9" fill="currentColor" stroke="none" />
+      <circle cx="14.3" cy="11.2" r=".9" fill="currentColor" stroke="none" />
+      <path d="M9.5 20.5c1-1 1-2 0-3M14.5 20.5c-1-1-1-2 0-3" />
+    </svg>
+  )
+}
+
 const LOGOS: Record<AiProviderId, ReactNode> = {
   genspark: (
     <svg viewBox="0 0 24 24" fill="currentColor" fillRule="evenodd" aria-hidden="true">
@@ -193,6 +214,10 @@ const LOGOS: Record<AiProviderId, ReactNode> = {
       <path d="M18.654 3.87a5.087 5.087 0 110 10.174L23.7 19.09c.64.641.187 1.737-.72 1.737H8.48a8.479 8.479 0 010-16.958h10.175zM8.479 7.26a5.087 5.087 0 100 10.176 5.087 5.087 0 000-10.175z" />
     </svg>
   ),
+  // shared mark for both Ollama entries (local server + Ollama Cloud are the
+  // same product); simple original glyph, not a trace of the official mark
+  ollama: <OllamaLogo />,
+  ollamaCloud: <OllamaLogo />,
   custom: (
     <svg
       viewBox="0 0 24 24"

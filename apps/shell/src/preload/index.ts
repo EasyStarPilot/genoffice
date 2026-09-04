@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { AI_PROVIDERS, getProviderAdapter } from '@genoffice/ai-provider'
-import type { AiSettings } from '@genoffice/ai-provider'
+import type { AiSettings, FetchModelsResult } from '@genoffice/ai-provider'
 import { installDropOpenBridge } from '@genoffice/electron-utils/drop-open'
 import type {
   AccountLoginEvent,
@@ -271,6 +271,9 @@ const homeApi: HomeApi = {
     return raw.ok === true
       ? { ok: true }
       : { ok: false, error: typeof raw.error === 'string' ? raw.error : 'Connection failed' }
+  },
+  async fetchAiModels(provider, config) {
+    return (await ipcRenderer.invoke('ai:fetch-models', provider, config)) as FetchModelsResult
   },
 }
 

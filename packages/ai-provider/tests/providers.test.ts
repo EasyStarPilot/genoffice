@@ -237,6 +237,23 @@ describe('activeProvider', () => {
     settings.provider = 'genspark'
     expect(activeProvider(settings)).toBe('genspark')
   })
+
+  it('lets a keyOptional provider (local Ollama) activate without an api key once a model is set', () => {
+    const settings = defaultAiSettings()
+    settings.provider = 'ollama'
+    expect(activeProvider(settings)).toBe('genspark') // no model chosen yet
+    settings.providers.ollama.model = 'llama3.1'
+    expect(activeProvider(settings)).toBe('ollama') // empty apiKey is fine — keyOptional
+  })
+
+  it('still requires a model for ollamaCloud, and does not make it keyOptional', () => {
+    const settings = defaultAiSettings()
+    settings.provider = 'ollamaCloud'
+    settings.providers.ollamaCloud.model = 'gpt-oss:120b'
+    expect(activeProvider(settings)).toBe('genspark') // ollamaCloud still needs a key
+    settings.providers.ollamaCloud.apiKey = 'sk-cloud'
+    expect(activeProvider(settings)).toBe('ollamaCloud')
+  })
 })
 
 describe('gskToolsEnabled', () => {

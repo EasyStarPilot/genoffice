@@ -1,4 +1,11 @@
-import type { AiChatResponse, AiProviderMeta, AiSettings } from '@genoffice/ai-provider'
+import type {
+  AiChatResponse,
+  AiProviderConfig,
+  AiProviderId,
+  AiProviderMeta,
+  AiSettings,
+  FetchModelsResult,
+} from '@genoffice/ai-provider'
 import type { UpdateChannel } from './update-api'
 
 /** UI language; kept self-contained here (mirrors Lang in @genoffice/i18n) */
@@ -161,6 +168,8 @@ export interface HomeApi {
   getAiProviders(): AiCatalogEntry[]
   /** one-shot round trip against the given (possibly unsaved) settings — the settings-UI connection test */
   testAiSettings(settings: AiSettings): Promise<AiChatResponse>
+  /** live model catalog for a provider whose meta declares dynamicModels (OpenRouter's full list, a reachable Ollama server's installed models) */
+  fetchAiModels(provider: AiProviderId, config: AiProviderConfig): Promise<FetchModelsResult>
 }
 
 export interface AiCatalogEntry extends AiProviderMeta {

@@ -14,6 +14,8 @@ export type AiProviderId =
   | 'xai'
   | 'mistral'
   | 'openrouter'
+  | 'ollama'
+  | 'ollamaCloud'
   | 'custom'
 
 /** Genspark account status (gsk login state; the sole auth source for AI features) */
@@ -36,6 +38,24 @@ export interface AiProviderMeta {
   defaultModel: string
   keyPlaceholder: string
   needsBaseUrl?: boolean
+  /** activeProvider() accepts this provider with an empty apiKey (a local server that doesn't check auth) */
+  keyOptional?: boolean
+  /** the model dropdown is empty until fetchProviderModels() populates it live (OpenRouter's catalog, a reachable Ollama server's installed models) */
+  dynamicModels?: boolean
+}
+
+/** one entry from a provider's live model catalog (fetchProviderModels) */
+export interface RemoteModel {
+  id: string
+  /** human-readable name, when the endpoint provides one distinct from the id */
+  label?: string
+  contextLength?: number
+}
+
+export interface FetchModelsResult {
+  ok: boolean
+  models: RemoteModel[]
+  error?: string
 }
 
 export interface AiSettings {

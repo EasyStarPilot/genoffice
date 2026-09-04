@@ -7,8 +7,10 @@ export type {
   AiSettings,
   AiStreamChunk,
   AiStreamRequest,
+  FetchModelsResult,
   GenSparkAccountStatus,
   LegacyAiSettings,
+  RemoteModel,
 } from './types'
 export {
   AI_PROVIDERS,
@@ -24,6 +26,7 @@ export {
   resolveAiSettings,
 } from './providers'
 export { AI_PROVIDER_ADAPTERS, getProviderAdapter, modelLacksVision } from './registry'
+export { fetchProviderModels } from './model-catalog'
 export type {
   AiProtocol,
   ProviderAdapter,

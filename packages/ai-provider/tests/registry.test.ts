@@ -77,6 +77,8 @@ describe('provider registry', () => {
       ['xai', 'grok-4.6', 'https://api.x.ai/v1'],
       ['mistral', 'mistral-large-latest', 'https://api.mistral.ai/v1'],
       ['openrouter', 'openrouter/auto', 'https://openrouter.ai/api/v1'],
+      ['ollama', 'llama3.1', 'http://localhost:11434/v1'],
+      ['ollamaCloud', 'gpt-oss:120b', 'https://ollama.com/v1'],
     ]
     for (const [id, model, baseUrl] of cases) {
       expect(AI_PROVIDER_ADAPTERS[id].resolveEndpoint(config(model))).toEqual({

@@ -7,7 +7,7 @@ import {
   MIN_MAX_OUTPUT_TOKENS,
   clampMaxOutputTokens,
 } from '@genoffice/ai-provider'
-import type { AiSettings } from '@genoffice/ai-provider'
+import type { AiProviderConfig, AiProviderId, AiSettings, RemoteModel } from '@genoffice/ai-provider'
 import { useI18n } from './locale'
 import type { StringKey, TFunc } from './locale'
 import type { AccountStatus, AiCatalogEntry, UiTheme } from '../../shared/home-api'
@@ -151,6 +151,22 @@ function Field({
   )
 }
 
+type ModelFetchState =
+  | { status: 'loading' }
+  | { status: 'ok'; models: RemoteModel[] }
+  | { status: 'error'; message: string }
+
+/** OpenRouter's own /models catalog needs no key; Ollama Cloud does, so an unset key would just 401 */
+function canAutoFetchModels(id: AiProviderId, config: AiProviderConfig): boolean {
+  return id === 'openrouter' || id === 'ollama' || (id === 'ollamaCloud' && !!config.apiKey)
+}
+
+/** "Claude Sonnet 5 (anthropic/claude-sonnet-5)" when the endpoint names it, else the bare id */
+function modelOptionLabel(id: string, remote?: RemoteModel): string {
+  if (!remote?.label || remote.label === id) return id
+  return `${remote.label} (${id})`
+}
+
 /** AI model pane: provider / model / key / base URL, saved to userData/ai-settings.json */
 function AiModelPane({ t }: { t: TFunc }) {
   const [catalog] = useState<AiCatalogEntry[]>(() => window.aiOffice.getAiProviders?.() ?? [])
@@ -161,6 +177,10 @@ function AiModelPane({ t }: { t: TFunc }) {
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
   /** free-typed value of the output-cap field; committed (and clamped) on blur */
   const [maxTokensDraft, setMaxTokensDraft] = useState<string | null>(null)
+  /** live catalog fetches (OpenRouter's full list, a reachable Ollama server's models), cached per provider for this pane's lifetime */
+  const [modelFetches, setModelFetches] = useState<Partial<Record<AiProviderId, ModelFetchState>>>(
+    {},
+  )
 
   useEffect(() => {
     let alive = true
@@ -181,6 +201,42 @@ function AiModelPane({ t }: { t: TFunc }) {
     }
   }, [])
 
+  const fetchModels = (id: AiProviderId, cfg: AiProviderConfig) => {
+    setModelFetches((m) => ({ ...m, [id]: { status: 'loading' } }))
+    window.aiOffice
+      .fetchAiModels?.(id, cfg)
+      .then((r) => {
+        setModelFetches((m) => ({
+          ...m,
+          [id]: r?.ok
+            ? { status: 'ok', models: r.models }
+            : { status: 'error', message: r?.error ?? 'Failed to load models' },
+        }))
+      })
+      .catch((error) => {
+        setModelFetches((m) => ({
+          ...m,
+          [id]: {
+            status: 'error',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        }))
+      })
+  }
+
+  // Auto-fetch once per provider switch — never on every keystroke — and only
+  // when it stands a real chance of succeeding (Ollama Cloud needs a key first).
+  useEffect(() => {
+    if (!settings) return
+    const id = settings.provider
+    const meta = catalog.find((c) => c.id === id)
+    if (!meta?.dynamicModels || modelFetches[id]) return
+    const cfg = settings.providers[id] ?? { apiKey: '', model: meta.defaultModel }
+    if (!canAutoFetchModels(id, cfg)) return
+    fetchModels(id, cfg)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.provider])
+
   if (!settings) return null
   const provider = settings.provider
   const meta = catalog.find((c) => c.id === provider)
@@ -189,6 +245,20 @@ function AiModelPane({ t }: { t: TFunc }) {
     model: meta?.defaultModel ?? '',
   }
   const isGenspark = provider === 'genspark'
+  const modelFetch = modelFetches[provider]
+  const fetchedModels = modelFetch?.status === 'ok' ? modelFetch.models : []
+  // fetched ids first (current/authoritative), then any curated id not already live
+  // (e.g. OpenRouter's 'openrouter/auto' router pseudo-model may not itself be
+  // listed by GET /models) — so the curated defaults never disappear on a fetch
+  const remoteById = new Map(fetchedModels.map((m) => [m.id, m]))
+  const modelIds =
+    fetchedModels.length > 0
+      ? [...fetchedModels.map((m) => m.id), ...(meta?.models ?? []).filter((id) => !remoteById.has(id))]
+      : (meta?.models ?? [])
+  const modelOptions = modelIds.map((id) => ({
+    value: id,
+    label: modelOptionLabel(id, remoteById.get(id)),
+  }))
 
   const touch = () => {
     setDirty(true)
@@ -274,13 +344,15 @@ function AiModelPane({ t }: { t: TFunc }) {
         <div className="set-field-text">
           <label className="set-field-label">{t('setAiModelId')}</label>
         </div>
-        {meta && meta.models.length > 0 ? (
+        {modelOptions.length > 0 ? (
           <Dropdown
             className="set-dd"
-            value={config.model || meta.defaultModel}
+            value={config.model || meta?.defaultModel || ''}
             ariaLabel={t('setAiModelId')}
-            options={meta.models.map((m) => ({ value: m, label: m }))}
+            options={modelOptions}
             onPick={(m) => updateConfig({ model: m })}
+            searchable={meta?.dynamicModels}
+            filterPlaceholder={t('setAiSearchModels')}
           />
         ) : (
           <input
@@ -294,6 +366,26 @@ function AiModelPane({ t }: { t: TFunc }) {
           />
         )}
       </div>
+      {meta?.dynamicModels && (
+        <div className="set-ai-model-fetch">
+          <span
+            className={`set-ai-model-fetch-status${modelFetch?.status === 'error' ? ' err' : ''}`}
+          >
+            {modelFetch?.status === 'loading' && (
+              <>
+                <span className="set-ai-spin" aria-hidden="true" />
+                {t('setAiFetchingModels')}
+              </>
+            )}
+            {modelFetch?.status === 'error' && (
+              <span title={modelFetch.message}>{t('setAiModelsFetchFail')}</span>
+            )}
+          </span>
+          <button type="button" className="set-btn" onClick={() => fetchModels(provider, config)}>
+            {t('cloudRefresh')}
+          </button>
+        </div>
+      )}
       {!isGenspark && (
         <>
           <div className="set-field">

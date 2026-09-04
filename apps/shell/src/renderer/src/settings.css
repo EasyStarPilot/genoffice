@@ -395,6 +395,31 @@
   line-height: 1.5;
 }
 
+/* model-field footer row: refresh action + live-fetch status (OpenRouter/Ollama) */
+.set-ai-model-fetch {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 0 2px;
+}
+
+.set-ai-model-fetch-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.set-ai-model-fetch-status.err {
+  color: var(--danger);
+}
+
 /* footer feedback pill: spinner while testing, green on success/saved, red on failure */
 .set-ai-status {
   display: inline-flex;

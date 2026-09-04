@@ -150,8 +150,9 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
   {
     id: 'openrouter',
     label: 'OpenRouter',
-    // vendor-prefixed slugs exactly as openrouter.ai/api/v1/models lists them —
-    // there is no `openai/gpt-5.6` alias there, only the per-tier ids
+    // curated fallback shown before (or if) the live catalog fetch (fetchProviderModels
+    // against GET /api/v1/models) completes — vendor-prefixed slugs exactly as
+    // openrouter.ai/api/v1/models lists them, there is no `openai/gpt-5.6` alias there
     models: [
       'openrouter/auto',
       'anthropic/claude-sonnet-5',
@@ -160,6 +161,26 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     ],
     defaultModel: 'openrouter/auto',
     keyPlaceholder: 'sk-or-...',
+    dynamicModels: true,
+  },
+  {
+    id: 'ollama',
+    label: 'Ollama',
+    // local server: no static catalog to seed — fetchProviderModels lists whatever
+    // is actually pulled (GET {baseUrl}/models), so this starts empty
+    models: [],
+    defaultModel: '',
+    keyPlaceholder: 'Not required for a local server',
+    keyOptional: true,
+    dynamicModels: true,
+  },
+  {
+    id: 'ollamaCloud',
+    label: 'Ollama Cloud',
+    models: [],
+    defaultModel: '',
+    keyPlaceholder: 'API key from ollama.com/settings/keys',
+    dynamicModels: true,
   },
   {
     id: 'custom',
@@ -198,7 +219,8 @@ export function cloudToolsEnabled(settings: Pick<AiSettings, 'gskToolsEnabled'>)
 
 /**
  * The stored provider selection is honored only when its config is usable
- * (api-key providers need a key and a model id; providers flagged
+ * (api-key providers need a key and a model id, unless flagged keyOptional —
+ * a local Ollama server that doesn't check auth; providers flagged
  * needsBaseUrl also need a base URL). Anything else — including unknown
  * ids from a hand-edited
  * settings file — falls back to genspark, so a half-filled setup degrades
@@ -209,7 +231,7 @@ export function activeProvider(settings: AiSettings): AiProviderId {
   if (provider === 'genspark') return 'genspark'
   const meta = AI_PROVIDERS.find((m) => m.id === provider)
   const config = settings.providers?.[provider]
-  if (!meta || !config?.apiKey || !config.model) return 'genspark'
+  if (!meta || (!config?.apiKey && !meta.keyOptional) || !config?.model) return 'genspark'
   if (meta.needsBaseUrl && !config.baseUrl) return 'genspark'
   return provider
 }
