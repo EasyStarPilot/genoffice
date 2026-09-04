@@ -21,6 +21,7 @@ mod shared_formulas;
 mod visuals;
 
 mod cell_images;
+pub mod ods_export;
 mod ods_formula;
 pub mod ods_import;
 mod refs;

@@ -146,6 +146,180 @@ fn translate_one_ref(part: &str) -> Option<RefPart> {
     Some(RefPart { text, cell })
 }
 
+/// Translates an Excel A1 formula (as stored in `CellRecord.formula` — no
+/// leading `=`, matching how OOXML's own `<f>` element never carries one)
+/// into ODF's `table:formula` value, `of:=`-prefixed with every bare cell/
+/// range reference re-bracketed and dot-separated. The reverse of
+/// [`openformula_to_a1`], and the harder direction: A1 has no delimiter
+/// marking where a reference starts, so this has to tell a reference token
+/// apart from a defined name, a function name, or plain text by shape and
+/// context alone (word boundaries on both sides, and never claiming a token
+/// immediately followed by `(` — that is a function call, not a reference).
+pub fn a1_to_openformula(formula: &str) -> String {
+    let chars: Vec<char> = formula.chars().collect();
+    let mut out = String::with_capacity(formula.len() + 8);
+    let mut i = 0;
+    while i < chars.len() {
+        match chars[i] {
+            '"' => {
+                out.push('"');
+                i += 1;
+                while i < chars.len() {
+                    out.push(chars[i]);
+                    let is_quote = chars[i] == '"';
+                    i += 1;
+                    if is_quote && chars.get(i) != Some(&'"') {
+                        break;
+                    }
+                    if is_quote {
+                        out.push(chars[i]);
+                        i += 1;
+                    }
+                }
+            }
+            c if is_reference_start(c, i, &chars) => {
+                if let Some((token, next)) = try_parse_reference(&chars, i) {
+                    out.push_str(&token);
+                    i = next;
+                } else {
+                    out.push(c);
+                    i += 1;
+                }
+            }
+            other => {
+                out.push(other);
+                i += 1;
+            }
+        }
+    }
+    format!("of:={out}")
+}
+
+/// A reference (or its leading sheet-name quote) may only start where the
+/// previous character isn't itself part of an identifier — otherwise this
+/// would misfire inside a longer name like a defined name or function.
+fn is_reference_start(c: char, index: usize, chars: &[char]) -> bool {
+    if !(c.is_ascii_alphabetic() || c == '\'' || c == '$') {
+        return false;
+    }
+    index == 0 || !is_ident_char(chars[index - 1])
+}
+
+fn is_ident_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '$'
+}
+
+/// `chars[start]` begins a candidate `[Sheet!]A1[:B2]` reference. Returns
+/// the bracketed OpenFormula text and the index just past it, or `None` if
+/// this position isn't actually a well-formed, properly-bounded reference
+/// (left as plain text — e.g. a defined name, or `LOG10(` where the digits
+/// belong to a function name, never a cell address, because it's followed
+/// by `(`).
+fn try_parse_reference(chars: &[char], start: usize) -> Option<(String, usize)> {
+    let mut pos = start;
+    let sheet = parse_sheet_prefix(chars, &mut pos);
+    let (col1, row1, after_first) = parse_cell_address(chars, pos)?;
+    let (end, second_cell) = if chars.get(after_first) == Some(&':') {
+        let (col2, row2, after_second) = parse_cell_address(chars, after_first + 1)?;
+        (after_second, Some((col2, row2)))
+    } else {
+        (after_first, None)
+    };
+    // a reference is never immediately followed by `(` (that's a call) or by
+    // another identifier character (that's a longer name, e.g. a defined
+    // name that happens to start with something reference-shaped)
+    if chars.get(end).is_some_and(|&c| c == '(' || is_ident_char(c)) {
+        return None;
+    }
+    let sheet_prefix = sheet.map(|s| format!("{s}.")).unwrap_or_else(|| ".".to_string());
+    let text = match second_cell {
+        None => format!("[{sheet_prefix}{col1}{row1}]"),
+        Some((col2, row2)) => format!("[{sheet_prefix}{col1}{row1}:.{col2}{row2}]"),
+    };
+    Some((text, end))
+}
+
+/// An optional `SheetName!` or `'Quoted Name'!` prefix at `chars[*pos]`,
+/// advancing `*pos` past it (including the `!`) only when a real prefix was
+/// found — otherwise `*pos` is left untouched for the cell-address parse
+/// that follows.
+fn parse_sheet_prefix(chars: &[char], pos: &mut usize) -> Option<String> {
+    let start = *pos;
+    if chars.get(start) == Some(&'\'') {
+        let mut i = start + 1;
+        let mut name = String::new();
+        loop {
+            let c = *chars.get(i)?;
+            i += 1;
+            if c == '\'' {
+                if chars.get(i) == Some(&'\'') {
+                    name.push('\'');
+                    i += 1;
+                    continue;
+                }
+                break;
+            }
+            name.push(c);
+        }
+        if chars.get(i) == Some(&'!') {
+            *pos = i + 1;
+            return Some(format!("'{}'", name.replace('\'', "''")));
+        }
+        return None;
+    }
+    let mut i = start;
+    while chars.get(i).is_some_and(|&c| c.is_ascii_alphanumeric() || c == '_' || c == '.') {
+        i += 1;
+    }
+    if i > start && chars.get(i) == Some(&'!') {
+        let name: String = chars[start..i].iter().collect();
+        *pos = i + 1;
+        return Some(name);
+    }
+    None
+}
+
+/// `[$]?[A-Za-z]{1,3}[$]?[0-9]+` at `chars[pos]` — returns the column
+/// letters, the row digits (with any `$` markers kept, since OpenFormula
+/// uses the identical convention Excel does), and the index just past it.
+fn parse_cell_address(chars: &[char], pos: usize) -> Option<(String, String, usize)> {
+    let mut i = pos;
+    let col_dollar = if chars.get(i) == Some(&'$') {
+        i += 1;
+        "$"
+    } else {
+        ""
+    };
+    let col_start = i;
+    while chars.get(i).is_some_and(|c| c.is_ascii_alphabetic()) && i - col_start < 3 {
+        i += 1;
+    }
+    if i == col_start {
+        return None;
+    }
+    let letters: String = chars[col_start..i].iter().collect();
+    if !letters.chars().all(|c| c.is_ascii_uppercase()) && !letters.chars().all(|c| c.is_ascii_lowercase()) {
+        // Excel column letters are never mixed-case as a single token in
+        // practice; this is almost certainly the start of a longer identifier
+        return None;
+    }
+    let row_dollar = if chars.get(i) == Some(&'$') {
+        i += 1;
+        "$"
+    } else {
+        ""
+    };
+    let row_start = i;
+    while chars.get(i).is_some_and(|c| c.is_ascii_digit()) {
+        i += 1;
+    }
+    if i == row_start {
+        return None;
+    }
+    let digits: String = chars[row_start..i].iter().collect();
+    Some((format!("{col_dollar}{letters}"), format!("{row_dollar}{digits}"), i))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,5 +369,60 @@ mod tests {
     #[test]
     fn leaves_a_formula_with_no_references_unchanged_besides_the_prefix() {
         assert_eq!(openformula_to_a1("of:=1+2*3"), "=1+2*3");
+    }
+
+    #[test]
+    fn a1_translates_a_simple_reference() {
+        assert_eq!(a1_to_openformula("A1+1"), "of:=[.A1]+1");
+    }
+
+    #[test]
+    fn a1_translates_a_range() {
+        assert_eq!(a1_to_openformula("SUM(A1:A2)"), "of:=SUM([.A1:.A2])");
+    }
+
+    #[test]
+    fn a1_translates_absolute_references() {
+        assert_eq!(a1_to_openformula("$A$1"), "of:=[.$A$1]");
+    }
+
+    #[test]
+    fn a1_translates_a_cross_sheet_range() {
+        assert_eq!(a1_to_openformula("SUM(Sheet2!A1:B2)"), "of:=SUM([Sheet2.A1:.B2])");
+    }
+
+    #[test]
+    fn a1_translates_a_quoted_sheet_name_with_a_space() {
+        assert_eq!(a1_to_openformula("'My Sheet'!A1"), "of:=['My Sheet'.A1]");
+    }
+
+    #[test]
+    fn a1_leaves_string_literals_untouched() {
+        assert_eq!(
+            a1_to_openformula(r#"IF(A1="B2","yes","no")"#),
+            r#"of:=IF([.A1]="B2","yes","no")"#
+        );
+    }
+
+    #[test]
+    fn a1_does_not_mistake_a_function_name_for_a_reference() {
+        // LOG10( looks reference-shaped (letters then digits) but is a call
+        assert_eq!(a1_to_openformula("LOG10(A1)"), "of:=LOG10([.A1])");
+        assert_eq!(a1_to_openformula("ATAN2(A1,B1)"), "of:=ATAN2([.A1],[.B1])");
+    }
+
+    #[test]
+    fn a1_does_not_mistake_a_longer_identifier_for_a_reference() {
+        // neither a defined name containing a reference-shaped substring...
+        assert_eq!(a1_to_openformula("TOTAL_A1"), "of:=TOTAL_A1");
+        // ...nor one immediately followed by more identifier characters
+        assert_eq!(a1_to_openformula("A1B"), "of:=A1B");
+    }
+
+    #[test]
+    fn a1_round_trips_through_openformula_to_a1() {
+        let original = "SUM(A1:A2)+Sheet2!$B$3";
+        let openformula = a1_to_openformula(original);
+        assert_eq!(openformula_to_a1(&openformula), format!("={original}"));
     }
 }

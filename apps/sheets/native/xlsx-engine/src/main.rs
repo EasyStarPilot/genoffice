@@ -72,6 +72,11 @@ enum Command {
     },
     #[serde(rename_all = "camelCase")]
     ConvertWorkbook { path: PathBuf, target_path: PathBuf },
+    /// The reverse direction: export the workbook at `path` (an .xlsx, as
+    /// every session's own working copy always is — see ods_import's doc
+    /// comment) to real ODF spreadsheet bytes at `target_path`.
+    #[serde(rename_all = "camelCase")]
+    ConvertToOds { path: PathBuf, target_path: PathBuf },
     #[serde(rename_all = "camelCase")]
     SaveArchive {
         source_path: PathBuf,
@@ -500,6 +505,14 @@ fn handle_request(
                 xlsx_sidecar::convert::convert_to_xlsx(&path, &target_path)
             };
             result.and_then(|result| {
+                to_json_value(serde_json::json!({
+                    "sheets": result.sheets,
+                    "cells": result.cells,
+                }))
+            })
+        }
+        Command::ConvertToOds { path, target_path } => {
+            xlsx_sidecar::ods_export::convert_xlsx_to_ods(&path, &target_path).and_then(|result| {
                 to_json_value(serde_json::json!({
                     "sheets": result.sheets,
                     "cells": result.cells,

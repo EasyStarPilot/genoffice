@@ -90,6 +90,12 @@ export class XlsxSidecarClient {
     return this.request({ command: 'convert_workbook', ...input }, ARCHIVE_TIMEOUT_MS)
   }
 
+  /** Export the workbook (an .xlsx — every session's working copy always is)
+   *  at `path` to real ODF spreadsheet bytes at `targetPath`. */
+  async convertToOds(input: { path: string; targetPath: string }): Promise<unknown> {
+    return this.request({ command: 'convert_to_ods', ...input }, ARCHIVE_TIMEOUT_MS)
+  }
+
   async archiveManifest(path: string): Promise<unknown> {
     return this.request({ command: 'archive_manifest', path }, ARCHIVE_TIMEOUT_MS)
   }
