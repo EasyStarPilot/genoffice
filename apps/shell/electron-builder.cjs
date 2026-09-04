@@ -326,6 +326,14 @@ const config = {
       mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     },
     {
+      ext: 'odp',
+      name: 'OpenDocument Presentation',
+      role: 'Editor',
+      // reuses the pptx tile — both open in the same slides editor; no separate odp icon asset yet
+      icon: 'pptx',
+      mimeType: 'application/vnd.oasis.opendocument.presentation',
+    },
+    {
       ext: 'xls',
       name: 'Excel 97-2003 Workbook',
       role: 'Editor',

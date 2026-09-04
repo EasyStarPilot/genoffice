@@ -50,6 +50,8 @@ export function configureSlidesRuntime(paths: RuntimePaths): void {
 export interface Session {
   path: string
   opened: OpenedPptx
+  /** Source/target file format for this session's Save — absent (default) is .pptx; 'odp' saves back to OpenDocument Presentation. Independent of what `opened.archive` currently holds (an AI-generation round trip may temporarily reincarnate it as a plain OOXML archive; the deck model itself is format-agnostic either way). */
+  format?: 'odp'
   fitWidthPx: number
   undoStack: HistorySnapshot[]
   redoStack: HistorySnapshot[]

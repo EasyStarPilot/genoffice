@@ -2540,11 +2540,13 @@ function createShellWindow(): void {
 const DOCX_RE = /\.docx$/i
 const XLSX_RE = /\.(xlsx|xlsm|xls|csv)$/i
 const PPTX_RE = /\.pptx$/i
+/** OpenDocument Presentation — opens in slides alongside .pptx (odp-engine maps it onto the same Slide model) */
+const ODP_RE = /\.odp$/i
 const PDF_RE = /\.pdf$/i
 const MD_RE = /\.(md|markdown)$/i
 
 /** document formats we recognize but don't open — surfaced as a dialog, not silently dropped */
-const UNSUPPORTED_DOC_RE = /\.(doc|rtf|odt|ppt|pps|odp|ods|xlsb|pages|key|numbers)$/i
+const UNSUPPORTED_DOC_RE = /\.(doc|rtf|odt|ppt|pps|ods|xlsb|pages|key|numbers)$/i
 
 /**
  * Single source of truth for the open-dialog filter. Includes the
@@ -2560,6 +2562,7 @@ const OPEN_DIALOG_EXTENSIONS = [
   'csv',
   'pptx',
   'ppt',
+  'odp',
   'pdf',
   'md',
   'markdown',
@@ -2572,6 +2575,7 @@ function supportedFileIn(argv: string[]): string | null {
         (DOCX_RE.test(arg) ||
           XLSX_RE.test(arg) ||
           PPTX_RE.test(arg) ||
+          ODP_RE.test(arg) ||
           PDF_RE.test(arg) ||
           MD_RE.test(arg)) &&
         existsSync(arg),
@@ -2666,7 +2670,7 @@ function routeDocumentPath(filePath: string): boolean {
     }
     return true
   }
-  if (PPTX_RE.test(filePath)) {
+  if (PPTX_RE.test(filePath) || ODP_RE.test(filePath)) {
     recordRecentFile(filePath)
     const existing = tabManager.findSlidesTabByPath(filePath)
     if (existing) {

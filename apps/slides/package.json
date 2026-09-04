@@ -23,6 +23,7 @@
     "@genoffice/ai-search": "*",
     "@genoffice/file-parse": "*",
     "@genoffice/i18n": "*",
+    "@genoffice/odp-engine": "*",
     "@genoffice/pptx-engine": "*",
     "@genoffice/pptx-render": "*",
     "@genoffice/project-store": "*",

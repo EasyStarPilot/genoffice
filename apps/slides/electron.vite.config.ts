@@ -39,6 +39,7 @@ export default defineConfig({
     plugins: [
       externalizeDepsPlugin({
         exclude: [
+          '@genoffice/odp-engine',
           '@genoffice/pptx-engine',
           '@genoffice/pptx-render',
           '@genoffice/ai-search',

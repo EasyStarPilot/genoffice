@@ -49,6 +49,7 @@ import {
 } from './ops'
 import { mapScriptOps } from './ops/script-map'
 import { matchesElementRef } from '@genoffice/pptx-engine/identity'
+import { commitOdpSaved, parseOdp, saveOdpToFile } from '@genoffice/odp-engine'
 import { buildPagePptx, parsePageSpec } from './page-spec'
 import { sniffImageMime } from './media-mime'
 import { getUiLang, normalizeLang, setUiLang } from '@genoffice/i18n'
@@ -531,7 +532,13 @@ setInterval(() => {
       }
       try {
         await mkdir(dirname(target), { recursive: true })
-        await savePptxToFile(session.opened, target)
+        // The recovery file always keeps its .pptx-named cache path (nothing ever
+        // validates its extension — maybeRecoverBytes just compares mtimes and
+        // hands the raw bytes back to openAndBuild's own format-aware open), but
+        // an odp session's bytes must still come from saveOdp, or savePptx's
+        // OOXML-specific rebuild would choke on an archive with no ppt/* parts.
+        if (session.format === 'odp') await saveOdpToFile(session.opened, target)
+        else await savePptxToFile(session.opened, target)
         autosaveBackoff.delete(backoffKey)
       } catch (error) {
         autosaveBackoff.set(backoffKey, AUTOSAVE_BACKOFF_TICKS)
@@ -704,6 +711,9 @@ function adoptEmbeddedFonts(opened: OpenedPptx): void {
   }
 }
 
+/** .odp (OpenDocument Presentation) is the one other format this session type can open/save — everything else in this module still assumes plain OOXML pptx bytes. */
+const ODP_RE = /\.odp$/i
+
 async function openAndBuild(
   wc: WebContents,
   path: string,
@@ -730,7 +740,8 @@ async function openAndBuild(
   const raw = await readFile(path)
   const { bytes, recovered } = await maybeRecoverBytes(path, new Uint8Array(raw))
   await shapedMetricsReady() // Lay out only after complex-script shaped metrics are ready, avoiding an init race falling back to estimation
-  const opened = await openPptx(bytes)
+  const isOdp = ODP_RE.test(path)
+  const opened = isOdp ? await parseOdp(bytes) : await openPptx(bytes)
   adoptEmbeddedFonts(opened)
   sessions.set(wc.id, {
     path,
@@ -738,6 +749,7 @@ async function openAndBuild(
     fitWidthPx,
     undoStack: [],
     redoStack: [],
+    ...(isOdp ? { format: 'odp' as const } : {}),
     ...(recovered ? { metaDirty: true } : {}),
   })
   scheduleHistoryNotify(sessions.get(wc.id)!)
@@ -4029,15 +4041,20 @@ export function registerSlidesIpc(): void {
       slidesOpenedHook?.(e.sender, session.path)
     }
     try {
-      await savePptxToFile(session.opened, session.path)
+      if (session.format === 'odp') {
+        await saveOdpToFile(session.opened, session.path)
+        commitOdpSaved(session.opened)
+      } else {
+        await savePptxToFile(session.opened, session.path)
+        // Bake the saved patches back into the in-memory model (clears dirty, syncs
+        // anchor.originalXml with disk) — a full reopen would re-read and unzip the
+        // whole package, doubling save latency on large decks. Element ids survive,
+        // but the renderer still expects the render tree in the response.
+        commitSaved(session.opened)
+      }
       autosaveBackoff.delete(session.path)
       void rm(autosavePathFor(session.path), { force: true }).catch(() => {})
       dropUntitledRecovery(e.sender.id)
-      // Bake the saved patches back into the in-memory model (clears dirty, syncs
-      // anchor.originalXml with disk) — a full reopen would re-read and unzip the
-      // whole package, doubling save latency on large decks. Element ids survive,
-      // but the renderer still expects the render tree in the response.
-      commitSaved(session.opened)
       session.metaDirty = false
       return {
         ok: true,
@@ -4053,20 +4070,31 @@ export function registerSlidesIpc(): void {
     const session = sessions.get(e.sender.id)
     if (!session) return { ok: false, error: 'no file open' }
     const parent = dialogParent()
+    const pptxFilter = { name: 'PowerPoint', extensions: ['pptx'] }
+    const odpFilter = { name: 'OpenDocument Presentation', extensions: ['odp'] }
     const options = {
       defaultPath: defaultName,
-      filters: [{ name: 'PowerPoint', extensions: ['pptx'] }],
+      // Save As can convert either way; the current format's filter goes first
+      // so the native dialog defaults to keeping the session's own format.
+      filters: session.format === 'odp' ? [odpFilter, pptxFilter] : [pptxFilter, odpFilter],
     }
     const r = await showSaveDialogWithMemory(dialog, parent, options, getDraftsDir())
     if (r.canceled || !r.filePath) return { ok: false }
     try {
-      await savePptxToFile(session.opened, r.filePath)
+      const toOdp = ODP_RE.test(r.filePath)
+      if (toOdp) {
+        await saveOdpToFile(session.opened, r.filePath)
+        commitOdpSaved(session.opened)
+      } else {
+        await savePptxToFile(session.opened, r.filePath)
+        commitSaved(session.opened)
+      }
       session.path = r.filePath
+      session.format = toOdp ? 'odp' : undefined
       autosaveBackoff.delete(r.filePath)
       dropUntitledRecovery(e.sender.id)
       await pushRecent(r.filePath)
       syncAttachedPaths(session, r.filePath)
-      commitSaved(session.opened)
       session.metaDirty = false
       return {
         ok: true,
