@@ -1323,6 +1323,14 @@ interface SessionInfo {
   /// Digest of the original .csv at open/save time — guards the write-back
   /// against external modification, like restoreTargetSha.
   readonly csvSourceSha?: string
+  /// .ods session: the original .ods on disk (opened as one, or established
+  /// by a Save As pick). Save keeps the ODS identity — the working copy
+  /// stays .xlsx internally (session.path), and a plain Save re-exports it
+  /// here through the sidecar's native ODF writer (ods_export) afterward.
+  readonly odsSourcePath?: string
+  /// Digest of the original .ods at open/save time — guards the write-back
+  /// against external modification, like csvSourceSha.
+  readonly odsSourceSha?: string
   /// App-owned directory containing the converted CSV/XLS copy. Removed only
   /// after the sidecar session and its independent snapshot are closed.
   readonly importTempDir?: string
@@ -2232,6 +2240,7 @@ export function registerSheetsIpc(): void {
       suggestSaveAs: prepared.suggestSaveAs,
       csvImport: prepared.csvImport,
       csvSourcePath: prepared.csvSourcePath,
+      odsSourcePath: prepared.odsSourcePath,
       importTempDir: prepared.importTempDir,
       restoreTarget: prepared.restoreTarget,
     })
@@ -2300,6 +2309,7 @@ export function registerSheetsIpc(): void {
           suggestSaveAs: prepared.suggestSaveAs,
           csvImport: prepared.csvImport,
           csvSourcePath: prepared.csvSourcePath,
+          odsSourcePath: prepared.odsSourcePath,
           importTempDir: prepared.importTempDir,
           restoreTarget: prepared.restoreTarget,
         })
@@ -2692,11 +2702,22 @@ export function registerSheetsIpc(): void {
     const session = entry.sessions.get(request.sessionId)
     if (!session) throw new Error('Unknown workbook session.')
 
-    // A CSV session's plain Save keeps the CSV identity: the xlsx save lands
-    // on the temp copy and the serialized csvContent is written back to the
-    // original .csv afterwards.
+    // A CSV or ODS session's plain Save keeps that file identity: the xlsx
+    // save lands on the temp working copy, and the original is refreshed
+    // from it afterward (renderer-serialized text for csv, a native ODF
+    // export via ods_export for ods).
     const csvInPlace = request.mode === 'save' && session.csvSourcePath !== undefined
+    const odsInPlace = request.mode === 'save' && session.odsSourcePath !== undefined
     let targetPath = session.path
+    // Set whenever this save should (re-)export to a real .ods afterward —
+    // either continuing an already ods-tracked session, or newly established
+    // by a Save As pick ending in .ods below.
+    let odsExportPath: string | undefined = odsInPlace ? session.odsSourcePath : undefined
+    // A *new* working-copy temp dir, allocated only when Save As establishes
+    // a new ods identity (mirrors prepareWorkbookForOpen's own allocation at
+    // open time) — the session's home going forward, threaded into the
+    // reopened session below instead of the old (now-irrelevant) one.
+    let newOdsWorkingDir: string | undefined
     // Converted .xls imports never save silently over the temp copy — the
     // first save always asks where the .xlsx should live.
     if (request.mode === 'save-as' || session.suggestSaveAs !== undefined) {
@@ -2710,6 +2731,7 @@ export function registerSheetsIpc(): void {
         defaultPath:
           session.suggestSaveAs ??
           session.csvSourcePath?.replace(/\.[^.]+$/, '.xlsx') ??
+          session.odsSourcePath ??
           session.restoreTarget ??
           session.path,
         filters: macroEnabled
@@ -2717,6 +2739,7 @@ export function registerSheetsIpc(): void {
           : [
               { name: tm('filterXlsx'), extensions: ['xlsx'] },
               { name: tm('filterCsv'), extensions: ['csv'] },
+              { name: 'OpenDocument Spreadsheet', extensions: ['ods'] },
             ],
         // CSV import: explain why the save goes through .xlsx (CSV keeps values only)
         ...(session.csvImport
@@ -2729,9 +2752,22 @@ export function registerSheetsIpc(): void {
       if (!macroEnabled && selection.filePath.toLowerCase().endsWith('.csv')) {
         return { canceled: true, csvSaveAsPath: selection.filePath }
       }
-      targetPath = selection.filePath.toLowerCase().endsWith(`.${ext}`)
-        ? selection.filePath
-        : `${selection.filePath}.${ext}`
+      if (!macroEnabled && selection.filePath.toLowerCase().endsWith('.ods')) {
+        // An .ods pick still rides the xlsx pipeline below (writeWorkbookTo
+        // writes real xlsx bytes) — only the file identity the session
+        // reopens on afterward changes, to a fresh temp working copy rather
+        // than the .ods itself; ods_export then derives the .ods bytes from it.
+        odsExportPath = selection.filePath
+        const directory = join(app.getPath('temp'), 'genoffice-imports', randomUUID())
+        await mkdir(directory, { recursive: true })
+        newOdsWorkingDir = directory
+        const stem = basename(selection.filePath).replace(/\.[^.]+$/, '')
+        targetPath = join(directory, `${stem}.xlsx`)
+      } else {
+        targetPath = selection.filePath.toLowerCase().endsWith(`.${ext}`)
+          ? selection.filePath
+          : `${selection.filePath}.${ext}`
+      }
     } else if (session.restoreTarget !== undefined) {
       // Restored crash-recovery copy: the restore prompt was the confirmation,
       // so Save writes straight back to the original — unless someone else
@@ -2753,11 +2789,17 @@ export function registerSheetsIpc(): void {
         throw new Error(tm('errDiskChanged'))
       }
     }
-    // The CSV write-back gets the same external-change guard as restoreTarget;
-    // a deleted .csv is fine — the write recreates it.
+    // The CSV/ODS write-back gets the same external-change guard as
+    // restoreTarget; a deleted original is fine — the write recreates it.
     if (csvInPlace && session.csvSourcePath !== undefined) {
       const csvSha = await sha256File(session.csvSourcePath).catch(() => undefined)
       if (csvSha !== undefined && csvSha !== session.csvSourceSha) {
+        throw new Error(tm('errDiskChanged'))
+      }
+    }
+    if (odsInPlace && session.odsSourcePath !== undefined) {
+      const odsSha = await sha256File(session.odsSourcePath).catch(() => undefined)
+      if (odsSha !== undefined && odsSha !== session.odsSourceSha) {
         throw new Error(tm('errDiskChanged'))
       }
     }
@@ -2779,6 +2821,16 @@ export function registerSheetsIpc(): void {
         Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(request.csvContent, 'utf8')]),
       )
     }
+    if (odsExportPath !== undefined) {
+      // Same guard-digest refresh as the CSV write-back above, so a failed
+      // ODF export leaves a retryable session instead of stranding the next
+      // Save on errDiskChanged against its own write.
+      const savedSha = await sha256File(targetPath).catch(() => undefined)
+      if (savedSha !== undefined && entry.sessions.has(request.sessionId)) {
+        entry.sessions.set(request.sessionId, { ...session, sha256: savedSha, path: targetPath })
+      }
+      await client.convertToOds({ path: targetPath, targetPath: odsExportPath })
+    }
 
     // The sidecar session still streams the pre-save bytes; swap it for a
     // fresh session over the saved file so future reads match the disk state.
@@ -2786,9 +2838,11 @@ export function registerSheetsIpc(): void {
     await cleanupSessionResources({
       tempRoot: app.getPath('temp'),
       snapshotPath: session.snapshotPath,
-      // A CSV in-place save keeps saving into the temp copy — its directory
-      // must survive the session swap.
-      importTempDir: csvInPlace ? undefined : session.importTempDir,
+      // A CSV/ODS in-place save keeps saving into the same temp copy — its
+      // directory must survive the session swap. A newly allocated ods
+      // working dir (this very save establishing ods tracking) is the
+      // session's home going forward, never the old one to clean up either.
+      importTempDir: csvInPlace || odsInPlace ? undefined : session.importTempDir,
       closeSidecar: () => client.close(request.sessionId),
     })
     const file = await openWorkbookSession(
@@ -2801,18 +2855,25 @@ export function registerSheetsIpc(): void {
             csvSourcePath: session.csvSourcePath,
             importTempDir: session.importTempDir,
           }
-        : undefined,
+        : odsExportPath !== undefined
+          ? {
+              odsSourcePath: odsExportPath,
+              importTempDir: newOdsWorkingDir ?? session.importTempDir,
+            }
+          : undefined,
     )
     // Notify shell (if running) so it can update the tab title and record the
-    // saved path in recent files (mirrors the open hook; covers Save As + first
-    // save after converting an .xls/.csv import). A CSV session's user-visible
-    // file is the original .csv, not the temp copy the xlsx save landed on.
+    // saved path in recent files (mirrors the open hook; covers Save As +
+    // first save after converting an .xls/.csv/.ods import). A CSV/ODS
+    // session's user-visible file is the original, not the temp copy the
+    // xlsx save landed on.
     workbookOpenedHook?.(
       event.sender,
-      (csvInPlace ? session.csvSourcePath : undefined) ?? targetPath,
+      (csvInPlace ? session.csvSourcePath : undefined) ?? odsExportPath ?? targetPath,
     )
     // The file on disk now carries these edits
     clearWorkbookRecovery(targetPath)
+    if (odsExportPath !== undefined) clearWorkbookRecovery(odsExportPath)
     if (session.suggestSaveAs !== undefined) clearWorkbookRecovery(session.suggestSaveAs)
     // Restored session saved (possibly Save As elsewhere): the unsaved work is
     // persisted, so the original's recovery copy must not re-offer it.
@@ -3649,31 +3710,37 @@ async function openWorkbookSession(
     suggestSaveAs?: string | undefined
     csvImport?: boolean | undefined
     csvSourcePath?: string | undefined
+    odsSourcePath?: string | undefined
     importTempDir?: string | undefined
     restoreTarget?: string | undefined
   },
 ): Promise<WorkbookFile> {
-  const { suggestSaveAs, csvImport, csvSourcePath, importTempDir, restoreTarget } = options ?? {}
+  const { suggestSaveAs, csvImport, csvSourcePath, odsSourcePath, importTempDir, restoreTarget } =
+    options ?? {}
   // Snapshot first, then the sidecar opens the snapshot (not the live path):
   // everything the session serves — cell reads, media, recalc, saves — comes
   // from the same bytes, even if the file on disk changes right after the
   // copy. The digest also describes exactly those bytes.
   const snapshotPath = await snapshotWorkbook(path)
   try {
-    const [opened, digest, snapshotStat, restoreTargetSha, csvSourceSha] = await Promise.all([
-      client
-        .open(snapshotPath, getUiLang(), systemShortDate())
-        .then((result) => sidecarOpenResultSchema.parse(result)),
-      sha256File(snapshotPath),
-      stat(snapshotPath),
-      // Missing original (deleted since the crash) is fine: the write-back recreates it.
-      restoreTarget === undefined
-        ? Promise.resolve(undefined)
-        : sha256File(restoreTarget).catch(() => undefined),
-      csvSourcePath === undefined
-        ? Promise.resolve(undefined)
-        : sha256File(csvSourcePath).catch(() => undefined),
-    ])
+    const [opened, digest, snapshotStat, restoreTargetSha, csvSourceSha, odsSourceSha] =
+      await Promise.all([
+        client
+          .open(snapshotPath, getUiLang(), systemShortDate())
+          .then((result) => sidecarOpenResultSchema.parse(result)),
+        sha256File(snapshotPath),
+        stat(snapshotPath),
+        // Missing original (deleted since the crash) is fine: the write-back recreates it.
+        restoreTarget === undefined
+          ? Promise.resolve(undefined)
+          : sha256File(restoreTarget).catch(() => undefined),
+        csvSourcePath === undefined
+          ? Promise.resolve(undefined)
+          : sha256File(csvSourcePath).catch(() => undefined),
+        odsSourcePath === undefined
+          ? Promise.resolve(undefined)
+          : sha256File(odsSourcePath).catch(() => undefined),
+      ])
     sessions.set(opened.sessionId, {
       path,
       snapshotPath,
@@ -3684,6 +3751,8 @@ async function openWorkbookSession(
       ...(csvImport ? { csvImport } : {}),
       ...(csvSourcePath === undefined ? {} : { csvSourcePath }),
       ...(csvSourceSha === undefined ? {} : { csvSourceSha }),
+      ...(odsSourcePath === undefined ? {} : { odsSourcePath }),
+      ...(odsSourceSha === undefined ? {} : { odsSourceSha }),
       ...(importTempDir === undefined ? {} : { importTempDir }),
       ...(restoreTarget === undefined ? {} : { restoreTarget }),
       ...(restoreTargetSha === undefined ? {} : { restoreTargetSha }),
@@ -3698,6 +3767,7 @@ async function openWorkbookSession(
       readOnly: false,
       needsSaveAs: suggestSaveAs !== undefined,
       ...(csvSourcePath === undefined ? {} : { csvPath: csvSourcePath }),
+      ...(odsSourcePath === undefined ? {} : { odsPath: odsSourcePath }),
       restoredFromRecovery: restoreTarget !== undefined,
       automaticRecoveryDisabled: !allowsAutomaticWorkbookRecovery(opened.sheets),
     })
@@ -3721,11 +3791,11 @@ function legacyCsvCharset(): string | undefined {
   return byLang[getUiLang()]
 }
 
-/// .xls, .ods and .csv open as a converted copy in the temp dir; the session
-/// remembers the original's .xlsx sibling as the Save As default. There is
-/// no native .ods writer (yet) — like .xls, a workbook opened from .ods
-/// round-trips through .xlsx from its first save on, same as .xls already
-/// does; only reading is native.
+/// .xls, .ods and .csv open as a converted copy in the temp dir. .xls has no
+/// native writer, so the session remembers the original's .xlsx sibling as
+/// the Save As default; .csv and .ods both have one (ods_export for .ods),
+/// so their session keeps that original's file identity instead — a plain
+/// Save re-exports back to it.
 async function prepareWorkbookForOpen(
   client: XlsxSidecarClient,
   path: string,
@@ -3737,6 +3807,7 @@ async function prepareWorkbookForOpen(
   suggestSaveAs?: string
   csvImport?: boolean
   csvSourcePath?: string
+  odsSourcePath?: string
   importTempDir?: string
   restoreTarget?: string
 }> {
@@ -3779,12 +3850,12 @@ async function prepareWorkbookForOpen(
     await cleanupImportTempDirectory(app.getPath('temp'), directory)
     throw error
   }
-  // CSV keeps its file identity: Save writes the values back to the original
-  // .csv (Excel's behavior), so no Save As detour is suggested. Legacy .xls
-  // and .ods both still route the first save through Save As to a fresh .xlsx.
-  return extension === 'csv'
-    ? { openPath, importTempDir: directory, csvImport: true, csvSourcePath: path }
-    : { openPath, importTempDir: directory, suggestSaveAs: path.replace(/\.[^.]+$/, '.xlsx') }
+  // CSV and ODS both keep their file identity: Save re-exports back to the
+  // original, so no Save As detour is suggested. Legacy .xls has no writer,
+  // so it still routes the first save through Save As to a fresh .xlsx.
+  if (extension === 'csv') return { openPath, importTempDir: directory, csvImport: true, csvSourcePath: path }
+  if (extension === 'ods') return { openPath, importTempDir: directory, odsSourcePath: path }
+  return { openPath, importTempDir: directory, suggestSaveAs: path.replace(/\.[^.]+$/, '.xlsx') }
 }
 
 /** shell-injected items appended to the File menu (e.g. Back to Home) */

@@ -529,9 +529,14 @@ export function App(): React.JSX.Element {
       if (saving || !state || journalSize(state.editJournal) === 0) return
       // Never while the in-cell editor is open (saving reloads the workbook
       // and would wipe the edit), never for converted .xls imports whose
-      // first save opens a Save As dialog, and never for CSV sessions —
-      // AutoSave would silently flatten the user's file.
-      if (editingCellRef.current || state.file.needsSaveAs || state.file.csvPath !== undefined)
+      // first save opens a Save As dialog, and never for CSV or ODS sessions —
+      // AutoSave would silently drop formatting/features neither format keeps.
+      if (
+        editingCellRef.current ||
+        state.file.needsSaveAs ||
+        state.file.csvPath !== undefined ||
+        state.file.odsPath !== undefined
+      )
         return
       saving = true
       void handleSaveRef.current('save', true).finally(() => {
@@ -562,6 +567,7 @@ export function App(): React.JSX.Element {
         editingCellRef.current ||
         state.file.needsSaveAs ||
         state.file.csvPath !== undefined ||
+        state.file.odsPath !== undefined ||
         state.file.restoredFromRecovery ||
         state.file.automaticRecoveryDisabled
       )
@@ -1599,9 +1605,9 @@ export function App(): React.JSX.Element {
     // imports (needsSaveAs) count as never-saved, like Excel.
     const cellFilenameDisposable = installCellFilenameFunction(runtime, () => {
       const file = lazyWorkbookRef.current?.file
-      // A CSV session's on-disk identity is the original .csv, not the
-      // converted temp copy the session streams from.
-      return file && !file.needsSaveAs ? (file.csvPath ?? file.path ?? null) : null
+      // A CSV or ODS session's on-disk identity is the original file, not
+      // the converted/working temp copy the session streams from.
+      return file && !file.needsSaveAs ? (file.csvPath ?? file.odsPath ?? file.path ?? null) : null
     })
     // RATE converges near -100% via bisection instead of erroring.
     const rateFallbackDisposable = installRateFallback(runtime)

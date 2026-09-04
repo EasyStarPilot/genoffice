@@ -696,6 +696,12 @@ export const workbookFileSchema = z
     /// writes it back here. Background flows (AutoSave, crash recovery)
     /// stand down: silently flattening the file would lose data.
     csvPath: z.string().min(1).optional(),
+    /// .ods session: the original .ods on disk (whether opened as one, or
+    /// established by a Save As pick). Save keeps the ODS identity — the
+    /// working copy stays .xlsx internally, and the main process re-exports
+    /// it here through the sidecar's native ODF writer after every save.
+    /// Background flows (AutoSave, crash recovery) stand down, same as csvPath.
+    odsPath: z.string().min(1).optional(),
     /// Session opened from a restored crash-recovery copy: Save silently
     /// writes back to the original file, and the 30s recovery writer stands
     /// down (it would overwrite the copy the sidecar is streaming from).
