@@ -305,6 +305,14 @@ const config = {
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     },
     {
+      ext: 'odt',
+      name: 'OpenDocument Text',
+      role: 'Editor',
+      // reuses the docx tile — both open in the same docs editor; no separate odt icon asset yet
+      icon: 'docx',
+      mimeType: 'application/vnd.oasis.opendocument.text',
+    },
+    {
       ext: 'xlsx',
       name: 'Excel Workbook',
       role: 'Editor',

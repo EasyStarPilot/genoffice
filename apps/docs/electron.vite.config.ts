@@ -7,6 +7,7 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 // silently bundle the other checkout's (possibly stale) code.
 const localAlias = {
   '@genoffice/docx-engine': resolve(__dirname, '../../packages/docx-engine/src/index.ts'),
+  '@genoffice/odt-engine': resolve(__dirname, '../../packages/odt-engine/src/index.ts'),
 }
 
 export default defineConfig({

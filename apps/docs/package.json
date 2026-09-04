@@ -23,6 +23,7 @@
     "@genoffice/ai-provider": "*",
     "@genoffice/ai-search": "*",
     "@genoffice/docx-engine": "*",
+    "@genoffice/odt-engine": "*",
     "@genoffice/file-parse": "*",
     "@genoffice/project-store": "*",
     "@genoffice/ui": "*",

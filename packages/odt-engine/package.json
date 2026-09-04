@@ -1,0 +1,26 @@
+{
+  "name": "@genoffice/odt-engine",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenDocument Text (.odt) read/write, mapped onto docx-engine's Block model so the docs editor (ProseMirror) works with it via the existing blocksToPmDoc converter",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@genoffice/docx-engine": "*",
+    "fast-xml-parser": "^5.3.4",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

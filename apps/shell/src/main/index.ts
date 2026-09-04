@@ -2538,6 +2538,8 @@ function createShellWindow(): void {
 // ---- routing: one dispatch function for every open path ----
 
 const DOCX_RE = /\.docx$/i
+/** OpenDocument Text — opens in docs alongside .docx (odt-engine maps it onto the same Block model) */
+const ODT_RE = /\.odt$/i
 const XLSX_RE = /\.(xlsx|xlsm|xls|csv)$/i
 const PPTX_RE = /\.pptx$/i
 /** OpenDocument Presentation — opens in slides alongside .pptx (odp-engine maps it onto the same Slide model) */
@@ -2546,7 +2548,7 @@ const PDF_RE = /\.pdf$/i
 const MD_RE = /\.(md|markdown)$/i
 
 /** document formats we recognize but don't open — surfaced as a dialog, not silently dropped */
-const UNSUPPORTED_DOC_RE = /\.(doc|rtf|odt|ppt|pps|ods|xlsb|pages|key|numbers)$/i
+const UNSUPPORTED_DOC_RE = /\.(doc|rtf|ppt|pps|ods|xlsb|pages|key|numbers)$/i
 
 /**
  * Single source of truth for the open-dialog filter. Includes the
@@ -2555,6 +2557,7 @@ const UNSUPPORTED_DOC_RE = /\.(doc|rtf|odt|ppt|pps|ods|xlsb|pages|key|numbers)$/
  */
 const OPEN_DIALOG_EXTENSIONS = [
   'docx',
+  'odt',
   'doc',
   'xlsx',
   'xlsm',
@@ -2573,6 +2576,7 @@ function supportedFileIn(argv: string[]): string | null {
     argv.find(
       (arg) =>
         (DOCX_RE.test(arg) ||
+          ODT_RE.test(arg) ||
           XLSX_RE.test(arg) ||
           PPTX_RE.test(arg) ||
           ODP_RE.test(arg) ||
@@ -2652,7 +2656,7 @@ function openGeneratedDocument(filePath: string): boolean {
 
 function routeDocumentPath(filePath: string): boolean {
   if (!existsSync(filePath) || !tabManager) return false
-  if (DOCX_RE.test(filePath)) {
+  if (DOCX_RE.test(filePath) || ODT_RE.test(filePath)) {
     recordRecentFile(filePath)
     const existing = tabManager.findDocsTabByPath(filePath)
     if (existing) tabManager.activateTab(existing)

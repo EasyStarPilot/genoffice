@@ -26,6 +26,15 @@ export interface DocState {
   isBlank?: boolean
   /** desired open password is set for the next save; toggled via Review > Protect */
   encrypted?: boolean
+  /**
+   * Source/target file format for this document's Save — absent (default) is
+   * .docx; 'odt' saves back to OpenDocument Text via odt-engine, which only
+   * models body content (paragraphs/headings/lists/tables/images/basic run
+   * formatting): headers/footers, comments, tracked changes, protection,
+   * ink, watermarks, themes, charts and section/page-setup edits made while
+   * an odt document is open are not written back on save.
+   */
+  format?: 'odt'
 }
 
 /** A restored recovery snapshot has not reached the original path yet. */

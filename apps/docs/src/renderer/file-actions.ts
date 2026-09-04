@@ -38,6 +38,7 @@ import {
   type ThemeFonts,
   type WriteProtection,
 } from '@genoffice/docx-engine'
+import { parseOdt, saveOdt } from '@genoffice/odt-engine'
 import type { Dispatch, SetStateAction } from 'react'
 import type { AiDocContent, OpenDocxResult } from '../shared/ipc'
 import {
@@ -52,6 +53,7 @@ import {
 import { docStyleCss } from './doc-style-css'
 import type { CompareEntry } from './editor/compare'
 import { blocksToPmDoc, pmDocToSavePlan, type PmNode } from './editor/convert'
+import { pmDocToOdtSaveBlocks } from './save-odt'
 import {
   annotationsFromParsed,
   buildInkImages,
@@ -262,7 +264,10 @@ export async function loadFile(
     return 'password'
   }
   try {
-    const parsed = await parseDocx(new Uint8Array(result.data))
+    const isOdt = /\.odt$/i.test(result.path)
+    const parsed = isOdt
+      ? await parseOdt(new Uint8Array(result.data))
+      : await parseDocx(new Uint8Array(result.data))
     // before setContent: blockAttrs/marks bake fontTable-driven factors and chains into the DOM
     setDocFontTable(parsed.fontTable)
     ctx.editor.storage.listNumbering.styles = parsed.styles
@@ -278,6 +283,7 @@ export async function loadFile(
       fileName: result.name,
       hash: result.hash,
       encrypted: result.encrypted,
+      format: isOdt ? 'odt' : undefined,
     })
     // this tab's document was replaced: a password parked for the previous
     // unsaved draft is stale and must not encrypt this document's saves.
@@ -481,6 +487,12 @@ function deriveAutoFileName(editor: Editor): string | null {
 export async function buildDocBytes(ctx: FileActionContext): Promise<Uint8Array | null> {
   const { doc, editor } = ctx
   if (!doc || !editor) return null
+  if (doc.format === 'odt') {
+    // odt has none of the docx-specific save-plan machinery below (sections,
+    // headers/footers, charts, ink, comments, protection, ...) — the engine
+    // fully regenerates content.xml from the live PM doc every save.
+    return saveOdt(pmDocToOdtSaveBlocks(editor.getJSON() as PmNode))
+  }
   const plan = pmDocToSavePlan(editor.getJSON() as PmNode, doc.parsed.blocks)
   // chart data edits patch the chart's own zip part, not the body XML
   const partXml: Record<string, string> = {}
@@ -819,7 +831,7 @@ async function saveOnce(
       return true
     }
     // Reload from saved bytes so docxIndex anchors point at the new file.
-    const reparsed = await parseDocx(bytes)
+    const reparsed = doc.format === 'odt' ? await parseOdt(bytes) : await parseDocx(bytes)
     setDocFontTable(reparsed.fontTable)
     editor.storage.listNumbering.styles = reparsed.styles
     editor.storage.listNumbering.docDefaults = reparsed.docDefaults

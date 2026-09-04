@@ -10,6 +10,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@genoffice/docx-engine': local('../../packages/docx-engine/src/index.ts'),
+      '@genoffice/odt-engine': local('../../packages/odt-engine/src/index.ts'),
       '@genoffice/font-metrics': local('../../packages/font-metrics/src/index.ts'),
       '@genoffice/electron-utils': local('../../packages/electron-utils/src/index.ts'),
       '@genoffice/ai-provider': local('../../packages/ai-provider/src/index.ts'),

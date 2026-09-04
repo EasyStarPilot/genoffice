@@ -2041,7 +2041,7 @@ export function uniquePathIn(dir: string, fileName: string): string {
 }
 
 export function openExternalDocx(filePath: string | null): void {
-  if (!filePath || !/\.docx$/i.test(filePath)) return
+  if (!filePath || !/\.(docx|odt)$/i.test(filePath)) return
   const win = BrowserWindow.getFocusedWindow() ?? mainWindow
   if (!rendererReady || !win) {
     pendingOpenPath = filePath
@@ -2388,12 +2388,43 @@ async function maybeRecoverDocBytes(
   return { bytes: original, recovered: false }
 }
 
+/**
+ * .odt (OpenDocument Text) has no equivalent of docx's CFB password
+ * encryption in this app (out of v1 scope), so this mirrors loadDocx's
+ * generic file-safety plumbing (archive/recovery/recents/write-grant) without
+ * any of the encrypt/decrypt branching — the actual OpenDocument parsing
+ * happens in the renderer (@genoffice/odt-engine's parseOdt), same as docx.
+ */
+async function loadOdt(filePath: string, wcId: number): Promise<OpenDocxResult> {
+  if (!existsSync(filePath)) return null
+  const original = await readFile(filePath)
+  const hash = await archiveOriginal(filePath, original)
+  const recovery = await maybeRecoverDocBytes(filePath, original)
+  const bytes = recovery.bytes
+  pushRecent(filePath)
+  allowDocWrite(wcId, filePath)
+  if (fileOpenedHook) fileOpenedHook(wcId, filePath)
+  markDiskEncrypted(wcId, filePath, false)
+  rememberDocPassword(wcId, filePath, null)
+  await rememberDiskState(wcId, filePath, original)
+  return {
+    path: filePath,
+    name: basename(filePath),
+    data: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+    hash,
+    encrypted: false,
+    recovered: recovery.recovered || undefined,
+  }
+}
+
 async function loadDocx(
   filePath: string,
   wcId: number,
   password?: string,
 ): Promise<OpenDocxResult> {
-  if (typeof filePath !== 'string' || !/\.docx$/i.test(filePath)) return null
+  if (typeof filePath !== 'string') return null
+  if (/\.odt$/i.test(filePath)) return loadOdt(filePath, wcId)
+  if (!/\.docx$/i.test(filePath)) return null
   if (!existsSync(filePath)) return null
   const original = await readFile(filePath)
   // Password-protected docx (ECMA-376 CFB container): without a password, hand
@@ -3068,7 +3099,10 @@ export function registerDocsIpc(): void {
   ipcMain.handle('docs:open', async (event) => {
     const result = await openDialog(event, {
       title: tm('dlgOpenDoc'),
-      filters: [{ name: tm('filterWord'), extensions: ['docx'] }],
+      filters: [
+        { name: tm('filterWord'), extensions: ['docx'] },
+        { name: 'OpenDocument Text', extensions: ['odt'] },
+      ],
       properties: ['openFile'],
     })
     if (result.canceled || result.filePaths.length === 0) return null
@@ -3203,10 +3237,14 @@ export function registerDocsIpc(): void {
         }
         // Snapshot desired state: the disk password remains unchanged until the
         // atomic write succeeds, and a newer ribbon intent survives this save.
+        // .odt has no equivalent of docx's CFB password encryption (out of v1
+        // scope) — encrypting odt bytes as if they were a docx CFB container
+        // would produce a file neither format can ever open again.
         const passwordState = snapshotDocPassword(event.sender.id, filePath)
-        const bytes = passwordState.password
-          ? encryptDocx(Buffer.from(data), passwordState.password)
-          : Buffer.from(data)
+        const bytes =
+          !/\.odt$/i.test(filePath) && passwordState.password
+            ? encryptDocx(Buffer.from(data), passwordState.password)
+            : Buffer.from(data)
         await atomicWriteFile(filePath, bytes)
         // Teardown may have cleared all in-memory secrets while the atomic
         // write was pending. Never resurrect state for an orphaned renderer.
@@ -3272,10 +3310,17 @@ export function registerDocsIpc(): void {
     async (event, defaultName: string, data: ArrayBuffer, sourcePath?: string | null) => {
       // an orphaned (closed-tab) renderer must not open dialogs or land new files
       if (tornDownWcIds.has(event.sender.id)) return { ok: false }
+      // `data` was already serialized renderer-side to match the document's own
+      // format (buildDocBytes branches on DocState.format) — Save As can't offer
+      // the other format's extension here without a byte/extension mismatch, so
+      // it stays locked to whichever format this document already is.
+      const isOdt = typeof sourcePath === 'string' && /\.odt$/i.test(sourcePath)
       const result = await saveDialog(event, {
         title: tm('dlgSaveAs'),
         defaultPath: defaultName,
-        filters: [{ name: tm('filterWord'), extensions: ['docx'] }],
+        filters: isOdt
+          ? [{ name: 'OpenDocument Text', extensions: ['odt'] }]
+          : [{ name: tm('filterWord'), extensions: ['docx'] }],
       })
       if (result.canceled || !result.filePath) return { ok: false }
       // the tab may have been closed while the dialog was open; checked before the
@@ -3286,9 +3331,11 @@ export function registerDocsIpc(): void {
           event.sender.id,
           typeof sourcePath === 'string' && sourcePath ? sourcePath : null,
         )
-        const bytes = passwordState.password
-          ? encryptDocx(Buffer.from(data), passwordState.password)
-          : Buffer.from(data)
+        // odt has no equivalent of docx's CFB password encryption (out of v1 scope)
+        const bytes =
+          !/\.odt$/i.test(result.filePath) && passwordState.password
+            ? encryptDocx(Buffer.from(data), passwordState.password)
+            : Buffer.from(data)
         await atomicWriteFile(result.filePath, bytes)
         if (tornDownWcIds.has(event.sender.id)) return { ok: false }
         allowDocWrite(event.sender.id, result.filePath)
