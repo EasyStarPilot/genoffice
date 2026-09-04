@@ -2207,7 +2207,7 @@ export function registerSheetsIpc(): void {
     if (!path) {
       const selection = await openFileDialog(event, {
         properties: ['openFile'],
-        filters: [{ name: tm('filterSpreadsheets'), extensions: ['xlsx', 'xlsm', 'xls', 'csv'] }],
+        filters: [{ name: tm('filterSpreadsheets'), extensions: ['xlsx', 'xlsm', 'xls', 'csv', 'ods'] }],
       })
       if (selection.canceled || !selection.filePaths[0]) return null
       path = selection.filePaths[0]
@@ -2321,7 +2321,7 @@ export function registerSheetsIpc(): void {
   ipcMain.handle(IPC_CHANNELS.selectWorkbooksForMerge, async (event) => {
     const selection = await openFileDialog(event, {
       properties: ['openFile', 'multiSelections'],
-      filters: [{ name: tm('filterSpreadsheets'), extensions: ['xlsx', 'xlsm', 'xls', 'csv'] }],
+      filters: [{ name: tm('filterSpreadsheets'), extensions: ['xlsx', 'xlsm', 'xls', 'csv', 'ods'] }],
     })
     if (selection.canceled || selection.filePaths.length === 0) return null
     return openMergeSources(event, selection.filePaths)
@@ -3721,8 +3721,11 @@ function legacyCsvCharset(): string | undefined {
   return byLang[getUiLang()]
 }
 
-/// .xls and .csv open as a converted copy in the temp dir; the session
-/// remembers the original's .xlsx sibling as the Save As default.
+/// .xls, .ods and .csv open as a converted copy in the temp dir; the session
+/// remembers the original's .xlsx sibling as the Save As default. There is
+/// no native .ods writer (yet) — like .xls, a workbook opened from .ods
+/// round-trips through .xlsx from its first save on, same as .xls already
+/// does; only reading is native.
 async function prepareWorkbookForOpen(
   client: XlsxSidecarClient,
   path: string,
@@ -3738,7 +3741,7 @@ async function prepareWorkbookForOpen(
   restoreTarget?: string
 }> {
   const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase()
-  if (extension !== 'csv' && extension !== 'xls') {
+  if (extension !== 'csv' && extension !== 'xls' && extension !== 'ods') {
     // Unsaved work from a lost session: offer the recovery copy. Restoring
     // opens it with restoreTarget pointing back at the original, so a plain
     // Save writes straight back over the file the user opened — the restore
@@ -3767,6 +3770,9 @@ async function prepareWorkbookForOpen(
         await csvToXlsxBuffer(decodeCsvBuffer(await readFile(path), legacyCsvCharset())),
       )
     } else {
+      // .xls and .ods both convert through the sidecar's ConvertWorkbook
+      // command — it dispatches by the source path's own extension (calamine
+      // for .xls, the native ODF reader in ods_import for .ods).
       await client.convertWorkbook({ path, targetPath: openPath })
     }
   } catch (error) {
@@ -3775,7 +3781,7 @@ async function prepareWorkbookForOpen(
   }
   // CSV keeps its file identity: Save writes the values back to the original
   // .csv (Excel's behavior), so no Save As detour is suggested. Legacy .xls
-  // still routes the first save through Save As to a fresh .xlsx.
+  // and .ods both still route the first save through Save As to a fresh .xlsx.
   return extension === 'csv'
     ? { openPath, importTempDir: directory, csvImport: true, csvSourcePath: path }
     : { openPath, importTempDir: directory, suggestSaveAs: path.replace(/\.[^.]+$/, '.xlsx') }

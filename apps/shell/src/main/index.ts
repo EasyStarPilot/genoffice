@@ -2540,7 +2540,8 @@ function createShellWindow(): void {
 const DOCX_RE = /\.docx$/i
 /** OpenDocument Text — opens in docs alongside .docx (odt-engine maps it onto the same Block model) */
 const ODT_RE = /\.odt$/i
-const XLSX_RE = /\.(xlsx|xlsm|xls|csv)$/i
+/** .ods opens alongside xlsx/xlsm/xls/csv — the sidecar's ConvertWorkbook command reads it natively (ods_import) */
+const XLSX_RE = /\.(xlsx|xlsm|xls|csv|ods)$/i
 const PPTX_RE = /\.pptx$/i
 /** OpenDocument Presentation — opens in slides alongside .pptx (odp-engine maps it onto the same Slide model) */
 const ODP_RE = /\.odp$/i
@@ -2548,7 +2549,7 @@ const PDF_RE = /\.pdf$/i
 const MD_RE = /\.(md|markdown)$/i
 
 /** document formats we recognize but don't open — surfaced as a dialog, not silently dropped */
-const UNSUPPORTED_DOC_RE = /\.(doc|rtf|ppt|pps|ods|xlsb|pages|key|numbers)$/i
+const UNSUPPORTED_DOC_RE = /\.(doc|rtf|ppt|pps|xlsb|pages|key|numbers)$/i
 
 /**
  * Single source of truth for the open-dialog filter. Includes the
@@ -2563,6 +2564,7 @@ const OPEN_DIALOG_EXTENSIONS = [
   'xlsm',
   'xls',
   'csv',
+  'ods',
   'pptx',
   'ppt',
   'odp',

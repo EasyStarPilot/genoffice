@@ -487,7 +487,19 @@ fn handle_request(
             to_json_value(serde_json::json!({ "cancelled": true }))
         }
         Command::ConvertWorkbook { path, target_path } => {
-            xlsx_sidecar::convert::convert_to_xlsx(&path, &target_path).and_then(|result| {
+            // .ods gets the native ODF reader (real styles/merges/column widths,
+            // OpenFormula translated to A1); everything else calamine already
+            // understands (.xls, ...) keeps the existing minimal converter.
+            let is_ods = path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("ods"));
+            let result = if is_ods {
+                xlsx_sidecar::ods_import::convert_ods_to_xlsx(&path, &target_path)
+            } else {
+                xlsx_sidecar::convert::convert_to_xlsx(&path, &target_path)
+            };
+            result.and_then(|result| {
                 to_json_value(serde_json::json!({
                     "sheets": result.sheets,
                     "cells": result.cells,

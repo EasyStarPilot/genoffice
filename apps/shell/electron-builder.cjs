@@ -356,6 +356,14 @@ const config = {
       mimeType: 'text/csv',
     },
     {
+      ext: 'ods',
+      name: 'OpenDocument Spreadsheet',
+      role: 'Editor',
+      // reuses the xlsx tile — both open in the same sheets editor; no separate ods icon asset yet
+      icon: 'xlsx',
+      mimeType: 'application/vnd.oasis.opendocument.spreadsheet',
+    },
+    {
       ext: 'pdf',
       name: 'PDF Document',
       role: 'Editor',
