@@ -16,6 +16,8 @@ export const MARKDOWN_CHANNELS = {
   readImage: 'markdown:read-image',
   exportRequest: 'markdown:export-request',
   exportDocx: 'markdown:export-docx',
+  exportOdt: 'markdown:export-odt',
+  exportOdp: 'markdown:export-odp',
   exportPdf: 'markdown:export-pdf',
   printRequest: 'markdown:print-request',
   aiGenerateImage: 'markdown:ai-generate-image',
@@ -79,7 +81,7 @@ export interface ImageSearchResult {
   error?: string
 }
 
-export type ExportFormat = 'pdf' | 'docx' | 'docs'
+export type ExportFormat = 'pdf' | 'docx' | 'docs' | 'odt' | 'odp'
 
 export interface ExportDocxRequest {
   /** .docx bytes, base64 */
@@ -88,6 +90,18 @@ export interface ExportDocxRequest {
   suggestedName: string
   /** 'dialog' = save dialog; 'openInDocs' = app-managed temporary copy opened in AI Docs */
   mode: 'dialog' | 'openInDocs'
+}
+
+export interface ExportOdtRequest {
+  /** .odt bytes, base64 */
+  base64: string
+  suggestedName: string
+}
+
+export interface ExportOdpRequest {
+  /** .odp bytes, base64 */
+  base64: string
+  suggestedName: string
 }
 
 export interface ExportPdfRequest {
@@ -148,6 +162,8 @@ export interface MarkdownApi {
   /** Shell menu Print → renderer builds the print HTML and opens the system print dialog */
   onPrintRequest(handler: () => void): () => void
   exportDocx(request: ExportDocxRequest): Promise<ExportResult>
+  exportOdt(request: ExportOdtRequest): Promise<ExportResult>
+  exportOdp(request: ExportOdpRequest): Promise<ExportResult>
   exportPdf(request: ExportPdfRequest): Promise<ExportResult>
   getLanguage(): Promise<Lang>
   onLanguageChanged(handler: (lang: Lang) => void): () => void

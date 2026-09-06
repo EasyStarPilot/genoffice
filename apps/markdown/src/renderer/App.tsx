@@ -24,6 +24,8 @@ import { AiPanel, GensparkMark, type AiPreset, type MarkdownAiDeps } from './ai/
 import { EDIT_QUEUE_MAX, selectionForAnchor, type EditQueueItem } from './ai/edit-queue'
 import { addQueueAnchor, clearQueueAnchors, removeQueueAnchors } from './editor/aiQueueAnchors'
 import { DOCX_MAX_IMAGE_PX, exportDocxBytes } from './export/docxExport'
+import { exportOdtBytes } from './export/odtExport'
+import { exportOdpBytes } from './export/odpExport'
 import { buildPrintHtml } from './export/printHtml'
 import { resolveImageSrc } from './editor/localImage'
 import type { ExportFormat, SaveMode } from '../shared/ipc'
@@ -307,6 +309,15 @@ export default function App() {
         if (!result.ok) console.error('[markdown] pdf export failed:', result.error)
         return
       }
+      if (format === 'odp') {
+        const bytes = await exportOdpBytes(current.getJSON())
+        const result = await window.markdownApi.exportOdp({
+          base64: bytesToBase64(bytes),
+          suggestedName,
+        })
+        if (!result.ok) console.error('[markdown] odp export failed:', result.error)
+        return
+      }
       const loadImage = async (src: string) => {
         const data = await window.markdownApi.readImage(src)
         if (!data) return null
@@ -318,6 +329,15 @@ export default function App() {
           width = DOCX_MAX_IMAGE_PX
         }
         return { base64: data.base64, mime: data.mime, widthPx: width, heightPx: height }
+      }
+      if (format === 'odt') {
+        const bytes = await exportOdtBytes(current.getJSON(), loadImage)
+        const result = await window.markdownApi.exportOdt({
+          base64: bytesToBase64(bytes),
+          suggestedName,
+        })
+        if (!result.ok) console.error('[markdown] odt export failed:', result.error)
+        return
       }
       const bytes = await exportDocxBytes(current.getJSON(), loadImage)
       const result = await window.markdownApi.exportDocx({

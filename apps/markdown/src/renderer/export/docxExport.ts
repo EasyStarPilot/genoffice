@@ -32,16 +32,19 @@ export interface DocxMapping {
   options: SaveOptions
 }
 
-const MAX_LIST_LEVEL = 4
-const INDENT_STEP = 360
+export const MAX_LIST_LEVEL = 4
+export const INDENT_STEP = 360
 /** decimal abstractNum of the blank template (numbering.xml: 0 = bullet, 1 = decimal) */
 const DECIMAL_ABSTRACT_NUM_ID = '1'
-const CODE_FONT = 'Consolas'
-const CODE_FILL = 'F2F3F5'
+export const CODE_FONT = 'Consolas'
+export const CODE_FILL = 'F2F3F5'
 
 // ── inline content → Run[] ──
 
-function runsFromInline(content: JSONContent[] | undefined): Run[] {
+/** Exported for odtExport.ts/odpExport.ts: identical across every export target — a
+ *  Run/plain-text run cannot carry OMML, so inline math always keeps its LaTeX
+ *  source visible regardless of the destination format. */
+export function runsFromInline(content: JSONContent[] | undefined): Run[] {
   const runs: Run[] = []
   for (const child of content ?? []) {
     if (child.type === 'hardBreak') {
@@ -70,7 +73,8 @@ function runsFromInline(content: JSONContent[] | undefined): Run[] {
   return runs
 }
 
-function plainText(node: JSONContent): string {
+/** Exported for odtExport.ts/odpExport.ts (generic block-text extraction, no format-specific behavior). */
+export function plainText(node: JSONContent): string {
   if (node.type === 'text') return node.text ?? ''
   return (node.content ?? []).map(plainText).join('')
 }
@@ -85,7 +89,8 @@ interface WalkContext {
   pendingImages: Array<{ index: number; src: string; alt: string }>
 }
 
-function mergeFormat(base: ParaFormat | undefined, extra: ParaFormat): ParaFormat {
+/** Exported for odtExport.ts (same GeneratedBlock/ParaFormat model as docx). */
+export function mergeFormat(base: ParaFormat | undefined, extra: ParaFormat): ParaFormat {
   return { ...base, ...extra, indentLeft: (base?.indentLeft ?? 0) + (extra.indentLeft ?? 0) }
 }
 
@@ -155,7 +160,9 @@ function tableParagraphs(cell: JSONContent): TableParagraph[] {
   return paras.length > 0 ? paras : [{ runs: [] }]
 }
 
-function mapTable(node: JSONContent): TableModel {
+/** Exported for odtExport.ts: the resulting TableModel is engine-agnostic (odt-engine
+ *  just ignores the docx-only `bold`/`fill` header styling it doesn't model). */
+export function mapTable(node: JSONContent): TableModel {
   const rows: TableCell[][] = []
   for (const row of node.content ?? []) {
     if (row.type !== 'tableRow') continue

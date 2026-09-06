@@ -45,6 +45,8 @@ import { MARKDOWN_CHANNELS } from '../shared/ipc'
 import type {
   ExportDocxRequest,
   ExportFormat,
+  ExportOdpRequest,
+  ExportOdtRequest,
   ExportPdfRequest,
   ExportResult,
   ImageData,
@@ -736,6 +738,43 @@ function registerMarkdownIpc(): void {
     },
   )
 
+  /** Shared save-dialog-and-write for the odt/odp exports: unlike exportDocx, neither
+   *  has an "openInDocs"-style silent mode, so there's exactly one path to write. */
+  async function exportBytesWithDialog(
+    e: Electron.IpcMainInvokeEvent,
+    request: { base64: string; suggestedName: string } | null | undefined,
+    ext: string,
+    filterName: string,
+  ): Promise<ExportResult> {
+    if (typeof request?.base64 !== 'string' || !request.base64) {
+      return { ok: false, error: 'markdown: bad export request' }
+    }
+    const safeName =
+      String(request.suggestedName || tm('untitledFile'))
+        .replace(/[/\\:*?"<>|]/g, '_')
+        .slice(0, 80)
+        .trim() || tm('untitledFile')
+    try {
+      const bytes = Buffer.from(request.base64, 'base64')
+      const win =
+        BrowserWindow.fromWebContents(e.sender) ?? BrowserWindow.getFocusedWindow() ?? undefined
+      const picked = await showSaveDialogWithMemory(
+        dialog,
+        win,
+        {
+          defaultPath: `${safeName}.${ext}`,
+          filters: [{ name: filterName, extensions: [ext] }],
+        },
+        configuredDefaultSaveDir(app),
+      )
+      if (picked.canceled || !picked.filePath) return { ok: true, canceled: true }
+      await writeFile(picked.filePath, bytes)
+      return { ok: true, path: picked.filePath }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
   ipcMain.handle(
     MARKDOWN_CHANNELS.exportDocx,
     async (e, request: ExportDocxRequest): Promise<ExportResult> => {
@@ -779,6 +818,18 @@ function registerMarkdownIpc(): void {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
       }
     },
+  )
+
+  ipcMain.handle(
+    MARKDOWN_CHANNELS.exportOdt,
+    (e, request: ExportOdtRequest): Promise<ExportResult> =>
+      exportBytesWithDialog(e, request, 'odt', 'OpenDocument Text'),
+  )
+
+  ipcMain.handle(
+    MARKDOWN_CHANNELS.exportOdp,
+    (e, request: ExportOdpRequest): Promise<ExportResult> =>
+      exportBytesWithDialog(e, request, 'odp', 'OpenDocument Presentation'),
   )
 
   ipcMain.handle(

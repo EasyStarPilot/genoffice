@@ -510,6 +510,8 @@ const tMain = createI18n({
     menuExportDocxLocal: '导出为 Word（本地转换）…',
     menuExportDocxCloud: '导出为 Word（云端转换）…',
     menuExportPptx: '导出为 PPT…',
+    menuExportOdt: '导出为 OpenDocument 文本…',
+    menuExportOdp: '导出为 OpenDocument 演示文稿…',
     pdfPptxFailedMsg: '导出为 PPT 失败',
     pdfPptxBusyMsg: '正在转换中，请等待当前导出完成。',
     pdfPptxLocalScannedDetail: '本地转换已按图片保真导出各页，幻灯片中的文字不可编辑。',
@@ -602,6 +604,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Export as Word (Local)…',
     menuExportDocxCloud: 'Export as Word (Cloud)…',
     menuExportPptx: 'Export as PowerPoint…',
+    menuExportOdt: 'Export as OpenDocument Text…',
+    menuExportOdp: 'Export as OpenDocument Presentation…',
     pdfPptxFailedMsg: 'Export as PowerPoint failed',
     pdfPptxBusyMsg: 'An export is already in progress. Please wait for it to finish.',
     pdfPptxLocalScannedDetail:
@@ -700,6 +704,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Word として書き出す（ローカル変換）…',
     menuExportDocxCloud: 'Word として書き出す（クラウド変換）…',
     menuExportPptx: 'PowerPoint として書き出す…',
+    menuExportOdt: 'OpenDocument テキストとして書き出す…',
+    menuExportOdp: 'OpenDocument プレゼンテーションとして書き出す…',
     pdfPptxFailedMsg: 'PowerPoint への書き出しに失敗しました',
     pdfPptxBusyMsg: '変換が進行中です。現在の書き出しが完了するまでお待ちください。',
     pdfPptxLocalScannedDetail:
@@ -798,6 +804,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Word로 내보내기(로컬 변환)…',
     menuExportDocxCloud: 'Word로 내보내기(클라우드 변환)…',
     menuExportPptx: 'PowerPoint로 내보내기…',
+    menuExportOdt: 'OpenDocument 텍스트로 내보내기…',
+    menuExportOdp: 'OpenDocument 프레젠테이션으로 내보내기…',
     pdfPptxFailedMsg: 'PowerPoint 내보내기 실패',
     pdfPptxBusyMsg: '변환이 진행 중입니다. 현재 내보내기가 완료될 때까지 기다려 주세요.',
     pdfPptxLocalScannedDetail:
@@ -895,6 +903,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Exporter en Word (local)…',
     menuExportDocxCloud: 'Exporter en Word (cloud)…',
     menuExportPptx: 'Exporter en PowerPoint…',
+    menuExportOdt: 'Exporter en OpenDocument Texte…',
+    menuExportOdp: 'Exporter en OpenDocument Présentation…',
     pdfPptxFailedMsg: "Échec de l'exportation en PowerPoint",
     pdfPptxBusyMsg: "Une exportation est déjà en cours. Veuillez attendre qu'elle se termine.",
     pdfPptxLocalScannedDetail:
@@ -994,6 +1004,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Als Word exportieren (lokal)…',
     menuExportDocxCloud: 'Als Word exportieren (Cloud)…',
     menuExportPptx: 'Als PowerPoint exportieren…',
+    menuExportOdt: 'Als OpenDocument Text exportieren…',
+    menuExportOdp: 'Als OpenDocument Präsentation exportieren…',
     pdfPptxFailedMsg: 'Export als PowerPoint fehlgeschlagen',
     pdfPptxBusyMsg: 'Ein Export läuft bereits. Bitte warten Sie, bis er abgeschlossen ist.',
     pdfPptxLocalScannedDetail:
@@ -1093,6 +1105,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Exportar como Word (local)…',
     menuExportDocxCloud: 'Exportar como Word (nube)…',
     menuExportPptx: 'Exportar como PowerPoint…',
+    menuExportOdt: 'Exportar como OpenDocument Texto…',
+    menuExportOdp: 'Exportar como OpenDocument Presentación…',
     pdfPptxFailedMsg: 'Error al exportar como PowerPoint',
     pdfPptxBusyMsg: 'Ya hay una exportación en curso. Espere a que termine.',
     pdfPptxLocalScannedDetail:
@@ -1191,6 +1205,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'ส่งออกเป็น Word (แปลงในเครื่อง)…',
     menuExportDocxCloud: 'ส่งออกเป็น Word (แปลงบนคลาวด์)…',
     menuExportPptx: 'ส่งออกเป็น PowerPoint…',
+    menuExportOdt: 'ส่งออกเป็น OpenDocument Text…',
+    menuExportOdp: 'ส่งออกเป็น OpenDocument Presentation…',
     pdfPptxFailedMsg: 'การส่งออกเป็น PowerPoint ล้มเหลว',
     pdfPptxBusyMsg: 'กำลังแปลงอยู่ โปรดรอให้การส่งออกปัจจุบันเสร็จสิ้น',
     pdfPptxLocalScannedDetail: 'แต่ละหน้าถูกส่งออกเป็นรูปภาพ ข้อความในสไลด์จึงแก้ไขไม่ได้',
@@ -1286,6 +1302,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Ekspor sebagai Word (lokal)…',
     menuExportDocxCloud: 'Ekspor sebagai Word (cloud)…',
     menuExportPptx: 'Ekspor sebagai PowerPoint…',
+    menuExportOdt: 'Ekspor sebagai OpenDocument Text…',
+    menuExportOdp: 'Ekspor sebagai OpenDocument Presentation…',
     pdfPptxFailedMsg: 'Gagal mengekspor sebagai PowerPoint',
     pdfPptxBusyMsg: 'Ekspor sedang berlangsung. Harap tunggu hingga selesai.',
     pdfPptxLocalScannedDetail:
@@ -1385,6 +1403,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Экспортировать в Word (локально)…',
     menuExportDocxCloud: 'Экспортировать в Word (облако)…',
     menuExportPptx: 'Экспортировать в PowerPoint…',
+    menuExportOdt: 'Экспортировать в OpenDocument Text…',
+    menuExportOdp: 'Экспортировать в OpenDocument Presentation…',
     pdfPptxFailedMsg: 'Не удалось экспортировать в PowerPoint',
     pdfPptxBusyMsg: 'Экспорт уже выполняется. Дождитесь его завершения.',
     pdfPptxLocalScannedDetail:
@@ -1483,6 +1503,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'تصدير كملف Word (تحويل محلي)…',
     menuExportDocxCloud: 'تصدير كملف Word (تحويل سحابي)…',
     menuExportPptx: 'تصدير كملف PowerPoint…',
+    menuExportOdt: 'تصدير كملف OpenDocument Text…',
+    menuExportOdp: 'تصدير كملف OpenDocument Presentation…',
     pdfPptxFailedMsg: 'فشل التصدير كملف PowerPoint',
     pdfPptxBusyMsg: 'هناك عملية تصدير قيد التنفيذ. يرجى الانتظار حتى تكتمل.',
     pdfPptxLocalScannedDetail: 'تم تصدير كل صفحة كصورة؛ النص في الشرائح غير قابل للتحرير.',
@@ -1578,6 +1600,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Exportar como Word (local)…',
     menuExportDocxCloud: 'Exportar como Word (nuvem)…',
     menuExportPptx: 'Exportar como PowerPoint…',
+    menuExportOdt: 'Exportar como OpenDocument Texto…',
+    menuExportOdp: 'Exportar como OpenDocument Apresentação…',
     pdfPptxFailedMsg: 'Falha ao exportar como PowerPoint',
     pdfPptxBusyMsg: 'Já há uma exportação em andamento. Aguarde a conclusão.',
     pdfPptxLocalScannedDetail:
@@ -1677,6 +1701,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Esporta come Word (locale)…',
     menuExportDocxCloud: 'Esporta come Word (cloud)…',
     menuExportPptx: 'Esporta come PowerPoint…',
+    menuExportOdt: 'Esporta come OpenDocument Text…',
+    menuExportOdp: 'Esporta come OpenDocument Presentation…',
     pdfPptxFailedMsg: 'Esportazione come PowerPoint non riuscita',
     pdfPptxBusyMsg: "Un'esportazione è già in corso. Attendere che finisca.",
     pdfPptxLocalScannedDetail:
@@ -1776,6 +1802,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Eksportuj jako Word (lokalnie)…',
     menuExportDocxCloud: 'Eksportuj jako Word (chmura)…',
     menuExportPptx: 'Eksportuj jako PowerPoint…',
+    menuExportOdt: 'Eksportuj jako OpenDocument Text…',
+    menuExportOdp: 'Eksportuj jako OpenDocument Presentation…',
     pdfPptxFailedMsg: 'Eksport jako PowerPoint nie powiódł się',
     pdfPptxBusyMsg: 'Eksport już trwa. Poczekaj na jego zakończenie.',
     pdfPptxLocalScannedDetail:
@@ -1875,6 +1903,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Exporteren als Word (lokaal)…',
     menuExportDocxCloud: 'Exporteren als Word (cloud)…',
     menuExportPptx: 'Exporteren als PowerPoint…',
+    menuExportOdt: 'Exporteren als OpenDocument Text…',
+    menuExportOdp: 'Exporteren als OpenDocument Presentation…',
     pdfPptxFailedMsg: 'Exporteren als PowerPoint mislukt',
     pdfPptxBusyMsg: 'Er is al een export bezig. Wacht tot deze is voltooid.',
     pdfPptxLocalScannedDetail:
@@ -1974,6 +2004,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Eksport sebagai Word (setempat)…',
     menuExportDocxCloud: 'Eksport sebagai Word (awan)…',
     menuExportPptx: 'Eksport sebagai PowerPoint…',
+    menuExportOdt: 'Eksport sebagai OpenDocument Text…',
+    menuExportOdp: 'Eksport sebagai OpenDocument Presentation…',
     pdfPptxFailedMsg: 'Eksport sebagai PowerPoint gagal',
     pdfPptxBusyMsg: 'Eksport sedang berjalan. Sila tunggu sehingga selesai.',
     pdfPptxLocalScannedDetail:
@@ -2069,6 +2101,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'ייצוא כ-Word (המרה מקומית)…',
     menuExportDocxCloud: 'ייצוא כ-Word (המרה בענן)…',
     menuExportPptx: 'ייצוא כ-PowerPoint…',
+    menuExportOdt: 'ייצוא כ-OpenDocument Text…',
+    menuExportOdp: 'ייצוא כ-OpenDocument Presentation…',
     pdfPptxFailedMsg: 'הייצוא כ-PowerPoint נכשל',
     pdfPptxBusyMsg: 'ייצוא כבר מתבצע. יש להמתין לסיומו.',
     pdfPptxLocalScannedDetail: 'כל עמוד יוצא כתמונה; הטקסט בשקופיות אינו ניתן לעריכה.',
@@ -2165,6 +2199,8 @@ const tMain = createI18n({
     menuExportDocxLocal: 'Word के रूप में निर्यात करें (लोकल)…',
     menuExportDocxCloud: 'Word के रूप में निर्यात करें (क्लाउड)…',
     menuExportPptx: 'PowerPoint के रूप में निर्यात करें…',
+    menuExportOdt: 'OpenDocument Text के रूप में निर्यात करें…',
+    menuExportOdp: 'OpenDocument Presentation के रूप में निर्यात करें…',
     pdfPptxFailedMsg: 'PowerPoint के रूप में निर्यात विफल रहा',
     pdfPptxBusyMsg: 'एक निर्यात पहले से चल रहा है। कृपया उसके पूरा होने की प्रतीक्षा करें।',
     pdfPptxLocalScannedDetail:
@@ -2261,6 +2297,8 @@ const tMain = createI18n({
     menuExportDocxLocal: '匯出為 Word（本機轉換）…',
     menuExportDocxCloud: '匯出為 Word（雲端轉換）…',
     menuExportPptx: '匯出為 PPT…',
+    menuExportOdt: '匯出為 OpenDocument 文字…',
+    menuExportOdp: '匯出為 OpenDocument 簡報…',
     pdfPptxFailedMsg: '匯出為 PPT 失敗',
     pdfPptxBusyMsg: '正在轉換中，請等待目前匯出完成。',
     pdfPptxLocalScannedDetail: '本機轉換已將各頁以圖片保真匯出，簡報中的文字無法編輯。',
@@ -3496,6 +3534,20 @@ function buildMarkdownMenu(): void {
           click: () => {
             const tab = tabManager?.activeMarkdownTab()
             if (tab) sendMarkdownExportRequest(tab.webContents, 'docx')
+          },
+        },
+        {
+          label: tm('menuExportOdt'),
+          click: () => {
+            const tab = tabManager?.activeMarkdownTab()
+            if (tab) sendMarkdownExportRequest(tab.webContents, 'odt')
+          },
+        },
+        {
+          label: tm('menuExportOdp'),
+          click: () => {
+            const tab = tabManager?.activeMarkdownTab()
+            if (tab) sendMarkdownExportRequest(tab.webContents, 'odp')
           },
         },
         {
