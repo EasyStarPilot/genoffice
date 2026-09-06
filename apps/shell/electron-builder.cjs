@@ -136,6 +136,24 @@ if (process.platform === 'win32' && !existsSync(join(__dirname, WIN_OCR_HELPER))
   }
 }
 
+// Linux local-OCR helper: has no built-in OS OCR API, so this shells out to
+// the system `tesseract` binary via a small Rust binary (linux-ocr) built by
+// build-linux.mjs — same on-demand policy as the mac/Windows helpers. The
+// *binary* must always ship; it degrades gracefully on its own at runtime
+// (exit code 4) on end-user machines that lack tesseract-ocr.
+const LINUX_OCR_HELPER = '../../packages/pdf2docx/ocr-helper/linux-ocr/target/release/linux-ocr'
+if (process.platform === 'linux' && !existsSync(join(__dirname, LINUX_OCR_HELPER))) {
+  try {
+    execFileSync(
+      process.execPath,
+      [join(__dirname, '../../packages/pdf2docx/ocr-helper/build-linux.mjs')],
+      { stdio: 'inherit' },
+    )
+  } catch (err) {
+    throw new Error(`linux-ocr helper compile failed: ${err}`, { cause: err })
+  }
+}
+
 // Dual-arch packs share one extraResources path, so the shipped helper must be
 // a lipo fat binary. A stale host-arch build (dev path above) is rebuilt in
 // place; if a universal build cannot be produced, packaging aborts — otherwise
@@ -271,6 +289,10 @@ const config = {
     {
       from: '../../packages/pdf2docx/ocr-helper/win-ocr.exe',
       to: 'ocr/win-ocr.exe',
+    },
+    {
+      from: '../../packages/pdf2docx/ocr-helper/linux-ocr/target/release/linux-ocr',
+      to: 'ocr/linux-ocr',
     },
     {
       from: '../../node_modules/@genspark/cli',

@@ -6,14 +6,9 @@
  * sibling app modules) so the bundled shell main carries the package inline.
  */
 import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { convertPdfToDocx, PdfLoadError } from '../../../../packages/pdf2docx/src'
 import type { ConvertResult, OcrEngine, PdfiumModule } from '../../../../packages/pdf2docx/src'
-import {
-  createVisionOcrEngine,
-  createWindowsOcrEngine,
-} from '../../../../packages/pdf2docx/src/ocr-vision'
+import { resolvePlatformOcrEngine } from '../../../../packages/pdf2docx/src/ocr-vision'
 import { pdfiumWasmPath } from '../../../pdf/src/main/wasm-path'
 
 export type { ConvertResult, PageResult } from '../../../../packages/pdf2docx/src'
@@ -21,32 +16,17 @@ export { PdfLoadError } from '../../../../packages/pdf2docx/src'
 
 /**
  * Local OCR engine for scanned pages (platform system OCR; see
- * packages/pdf2docx/src/ocr.ts) — macOS Vision on darwin, Windows.Media.Ocr
- * on win32. Optional by design: when the helper binary is absent (Linux, or
- * a build without it) the engine resolves null and scanned pages keep the
- * full-page-image fallback.
+ * packages/pdf2docx/src/ocr.ts) — macOS Vision / Windows.Media.Ocr / Linux
+ * system tesseract. Optional by design: when the helper binary is absent (or,
+ * on Linux, the machine has no tesseract-ocr installed) the engine resolves
+ * null and scanned pages keep the full-page-image fallback.
  *
  * Packaged: Resources/ocr/<helper> (electron-builder extraResources).
  * Dev: the compiled helper in the repo (packages/pdf2docx/ocr-helper/).
  */
 let ocrEngine: OcrEngine | null | undefined
 function ensureOcrEngine(): OcrEngine | null {
-  if (ocrEngine !== undefined) return ocrEngine
-  const here = dirname(fileURLToPath(import.meta.url))
-  const helper = process.platform === 'darwin' ? 'vision-ocr' : 'win-ocr.exe'
-  const create = process.platform === 'darwin' ? createVisionOcrEngine : createWindowsOcrEngine
-  const candidates = [
-    ...(process.resourcesPath ? [join(process.resourcesPath, 'ocr', helper)] : []),
-    join(here, '../../../../packages/pdf2docx/ocr-helper', helper),
-  ]
-  ocrEngine = null
-  for (const path of candidates) {
-    const engine = create(path)
-    if (engine) {
-      ocrEngine = engine
-      break
-    }
-  }
+  ocrEngine ??= resolvePlatformOcrEngine(import.meta.url)
   return ocrEngine
 }
 

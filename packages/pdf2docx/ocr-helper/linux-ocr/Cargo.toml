@@ -1,0 +1,19 @@
+[package]
+name = "linux-ocr"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[[bin]]
+name = "linux-ocr"
+path = "src/main.rs"
+
+[dependencies]
+# Pure-Rust PNG decode only (no system libpng dependency) — just enough to
+# read pixel dimensions and RGBA bytes for the paper-share sample and for
+# handing tesseract a well-formed temp file.
+png = "0.17"
+
+[profile.release]
+opt-level = 2

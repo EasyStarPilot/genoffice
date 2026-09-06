@@ -1,9 +1,11 @@
 /**
  * Node-side OcrEngines backed by the platform system-OCR helper binaries in
- * ocr-helper/ (macOS Vision: vision-ocr.swift; Windows.Media.Ocr:
- * win-ocr.cs). Both helpers speak the same protocol — PNG on stdin, JSON
- * lines with normalized bottom-left boxes and a paper-tone share on stdout —
- * so one spawn wrapper serves every platform.
+ * ocr-helper/ (macOS Vision: vision-ocr.swift; Windows.Media.Ocr: win-ocr.cs;
+ * Linux — no built-in OS OCR API, so this shells out to the system
+ * `tesseract` binary instead: linux-ocr/src/main.rs). All three speak the
+ * same protocol — PNG on stdin, JSON lines with normalized bottom-left boxes
+ * and a paper-tone share on stdout — so one spawn wrapper serves every
+ * platform.
  *
  * Kept OUT of src/index.ts on purpose: it pulls in node:child_process, which
  * browser/renderer bundles must not see — consumers that run in Node
@@ -12,6 +14,8 @@
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Rect } from './geometry'
 import type { OcrEngine, OcrRecognition } from './ocr'
 
@@ -97,4 +101,66 @@ export function createWindowsOcrEngine(helperPath: string, languages?: string[])
   if (process.platform !== 'win32') return null
   if (!existsSync(helperPath)) return null
   return createHelperOcrEngine(helperPath, languages)
+}
+
+/**
+ * Build an OcrEngine that shells out to the compiled Linux helper
+ * (linux-ocr), which in turn shells out to the system `tesseract` binary.
+ * Same null-on-unavailable contract as the other two engines — including
+ * when the *helper* exists but the machine has no tesseract-ocr installed:
+ * the helper's own exit code 4 already maps to "no result" through the
+ * shared spawn wrapper below, same as it does for the Windows helper's
+ * no-language-available case.
+ *
+ * @param helperPath absolute path to the compiled linux-ocr binary
+ * @param languages  optional recognition hints, e.g. ['zh-Hans', 'en-US'];
+ *                   omit to use every tesseract language installed on the machine
+ */
+export function createLinuxOcrEngine(helperPath: string, languages?: string[]): OcrEngine | null {
+  if (process.platform !== 'linux') return null
+  if (!existsSync(helperPath)) return null
+  return createHelperOcrEngine(helperPath, languages)
+}
+
+/**
+ * Shared helper-path resolution for every consumer (apps/pdf's viewer bridge,
+ * the shell's pdf2docx-local.ts): packaged under Resources/ocr/<helper> via
+ * electron-builder extraResources, repo-relative to ocr-helper/ in dev. The
+ * Linux binary alone lives at its normal cargo output path in dev (it isn't
+ * flattened into ocr-helper/ like the mac/Windows helpers are) — only the
+ * *packaged* copy is flat, matching the other two.
+ *
+ * @param importMetaUrl the calling module's own `import.meta.url` — the dev
+ *   candidate is resolved relative to it, so this only works from a module
+ *   four directories above its app's `src/` root (apps/*\/src/main/*.ts),
+ *   matching every current caller.
+ * @param languages optional recognition hints forwarded to the platform engine
+ */
+export function resolvePlatformOcrEngine(
+  importMetaUrl: string,
+  languages?: string[],
+): OcrEngine | null {
+  const config: { helper: string; devRelative: string; create: typeof createVisionOcrEngine } =
+    process.platform === 'darwin'
+      ? { helper: 'vision-ocr', devRelative: 'vision-ocr', create: createVisionOcrEngine }
+      : process.platform === 'win32'
+        ? { helper: 'win-ocr.exe', devRelative: 'win-ocr.exe', create: createWindowsOcrEngine }
+        : {
+            helper: 'linux-ocr',
+            devRelative: 'linux-ocr/target/release/linux-ocr',
+            create: createLinuxOcrEngine,
+          }
+  const here = dirname(fileURLToPath(importMetaUrl))
+  // Electron-only global; this package also runs in plain Node (tests, eval
+  // scripts) so it isn't in scope, unlike the apps/* callers' tsconfigs.
+  const resourcesPath = (process as { resourcesPath?: string }).resourcesPath
+  const candidates = [
+    ...(resourcesPath ? [join(resourcesPath, 'ocr', config.helper)] : []),
+    join(here, '../../../../packages/pdf2docx/ocr-helper', config.devRelative),
+  ]
+  for (const path of candidates) {
+    const engine = config.create(path, languages)
+    if (engine) return engine
+  }
+  return null
 }
