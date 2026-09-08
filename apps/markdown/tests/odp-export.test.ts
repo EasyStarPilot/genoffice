@@ -3,7 +3,8 @@ import { Editor } from '@tiptap/core'
 import { parseOdp } from '@genoffice/odp-engine'
 import type { TextElement } from '@genoffice/pptx-engine'
 import { buildExtensions } from '../src/renderer/editor/extensions'
-import { exportOdpBytes, splitIntoSlides } from '../src/renderer/export/odpExport'
+import { splitIntoSlides } from '../src/renderer/export/odpExport'
+import { buildOdpBytes } from '../src/main/odp-export'
 
 // Undestroyed views leave DOMObserver flush timers that fire after jsdom teardown
 // ("document is not defined" unhandled error) — destroy every editor we create.
@@ -81,10 +82,11 @@ describe('splitIntoSlides', () => {
   })
 })
 
-describe('odp export', () => {
+describe('odp export (buildOdpBytes, the main-process byte builder)', () => {
   it('produces one slide per H1 with a real title shape and bullet body', async () => {
     const editor = createEditor('# Intro\n\n- point one\n- point two\n\n# Conclusion\n\nthe end')
-    const bytes = await exportOdpBytes(editor.getJSON())
+    const slides = splitIntoSlides(editor.getJSON())
+    const bytes = await buildOdpBytes(slides)
     expect(bytes.length).toBeGreaterThan(500)
     const opened = await parseOdp(bytes)
     expect(opened.deck.slides).toHaveLength(2)
@@ -101,12 +103,19 @@ describe('odp export', () => {
 
   it('a document with no heading at all still exports a single valid slide', async () => {
     const editor = createEditor('just some text')
-    const bytes = await exportOdpBytes(editor.getJSON())
+    const slides = splitIntoSlides(editor.getJSON())
+    const bytes = await buildOdpBytes(slides)
     const opened = await parseOdp(bytes)
     expect(opened.deck.slides).toHaveLength(1)
     const body = textElements(opened.deck.slides[0]!).find((e) =>
       allText(e).includes('just some text'),
     )
     expect(body).toBeDefined()
+  })
+
+  it('an empty slides array still produces one valid blank slide', async () => {
+    const bytes = await buildOdpBytes([])
+    const opened = await parseOdp(bytes)
+    expect(opened.deck.slides).toHaveLength(1)
   })
 })

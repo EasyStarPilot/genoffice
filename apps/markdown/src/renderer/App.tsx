@@ -25,7 +25,7 @@ import { EDIT_QUEUE_MAX, selectionForAnchor, type EditQueueItem } from './ai/edi
 import { addQueueAnchor, clearQueueAnchors, removeQueueAnchors } from './editor/aiQueueAnchors'
 import { DOCX_MAX_IMAGE_PX, exportDocxBytes } from './export/docxExport'
 import { exportOdtBytes } from './export/odtExport'
-import { exportOdpBytes } from './export/odpExport'
+import { splitIntoSlides } from './export/odpExport'
 import { buildPrintHtml } from './export/printHtml'
 import { resolveImageSrc } from './editor/localImage'
 import type { ExportFormat, SaveMode } from '../shared/ipc'
@@ -310,11 +310,8 @@ export default function App() {
         return
       }
       if (format === 'odp') {
-        const bytes = await exportOdpBytes(current.getJSON())
-        const result = await window.markdownApi.exportOdp({
-          base64: bytesToBase64(bytes),
-          suggestedName,
-        })
+        const slides = splitIntoSlides(current.getJSON())
+        const result = await window.markdownApi.exportOdp({ slides, suggestedName })
         if (!result.ok) console.error('[markdown] odp export failed:', result.error)
         return
       }

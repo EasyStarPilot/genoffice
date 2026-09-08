@@ -98,9 +98,30 @@ export interface ExportOdtRequest {
   suggestedName: string
 }
 
+export type BulletKind = 'bullet' | 'ordered' | 'none'
+
+export interface BodyLine {
+  text: string
+  level: number
+  bullet: BulletKind
+  bold?: boolean
+  mono?: boolean
+}
+
+export interface SlideContent {
+  title: string | null
+  lines: BodyLine[]
+}
+
 export interface ExportOdpRequest {
-  /** .odp bytes, base64 */
-  base64: string
+  /**
+   * Plain-data slide split (see odpExport.ts's splitIntoSlides), not bytes: the
+   * actual .odp bytes are built in the main process — pptx-engine/odp-engine
+   * need node:crypto/node:fs for zip archive handling and must not be bundled
+   * into the renderer (same reason ocr-vision.ts stays out of pdf2docx's
+   * browser-safe entry point).
+   */
+  slides: SlideContent[]
   suggestedName: string
 }
 

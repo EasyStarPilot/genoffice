@@ -18,10 +18,20 @@ const TIPTAP_DEDUPE = [
   '@tiptap/extension-code-block',
 ]
 
+// @genoffice/i18n and @genoffice/electron-utils ship as TS source — must be
+// bundled. @genoffice/odp-engine and its own @genoffice/pptx-engine dependency
+// (odp-export.ts's zip/archive work) are the same: raw TS source, no compiled
+// dist a plain Node `require` in the packaged app could load.
+const MAIN_BUNDLED_DEPS = [
+  '@genoffice/i18n',
+  '@genoffice/electron-utils',
+  '@genoffice/odp-engine',
+  '@genoffice/pptx-engine',
+]
+
 export default defineConfig({
-  // @genoffice/i18n and @genoffice/electron-utils ship as TS source — must be bundled
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@genoffice/i18n', '@genoffice/electron-utils'] })],
+    plugins: [externalizeDepsPlugin({ exclude: MAIN_BUNDLED_DEPS })],
   },
   preload: {
     // same bundling requirement as main (see comment above)

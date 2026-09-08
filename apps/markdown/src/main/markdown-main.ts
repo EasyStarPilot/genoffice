@@ -41,6 +41,7 @@ import {
   writeImageIntoOwnedAssets,
 } from './asset-lifecycle'
 import { createMarkdownConversionSession, writeMarkdownConversion } from './conversion-lifecycle'
+import { buildOdpBytes } from './odp-export'
 import { MARKDOWN_CHANNELS } from '../shared/ipc'
 import type {
   ExportDocxRequest,
@@ -828,8 +829,23 @@ function registerMarkdownIpc(): void {
 
   ipcMain.handle(
     MARKDOWN_CHANNELS.exportOdp,
-    (e, request: ExportOdpRequest): Promise<ExportResult> =>
-      exportBytesWithDialog(e, request, 'odp', 'OpenDocument Presentation'),
+    async (e, request: ExportOdpRequest): Promise<ExportResult> => {
+      if (!request || !Array.isArray(request.slides)) {
+        return { ok: false, error: 'markdown: bad export request' }
+      }
+      let base64: string
+      try {
+        base64 = Buffer.from(await buildOdpBytes(request.slides)).toString('base64')
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+      return exportBytesWithDialog(
+        e,
+        { base64, suggestedName: request.suggestedName },
+        'odp',
+        'OpenDocument Presentation',
+      )
+    },
   )
 
   ipcMain.handle(

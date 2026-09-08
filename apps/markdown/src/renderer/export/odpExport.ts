@@ -1,8 +1,8 @@
 /**
- * md document (PM JSON) -> brand-new .odp bytes, fully local. Unlike docx/odt
- * (a flowing document, so the markdown block tree maps to it almost 1:1),
- * markdown has no native notion of a "slide" — this invents one deliberately
- * simple convention, the same one Marp/Slidev/reveal.js-markdown use:
+ * md document (PM JSON) -> SlideContent[], the plain-data slide split for a
+ * .odp export. Markdown has no native notion of a "slide" — this invents one
+ * deliberately simple convention, the same one Marp/Slidev/reveal.js-markdown
+ * use:
  *
  *   - Each H1 heading starts a new slide and becomes its title.
  *   - A horizontal rule (`---`) also starts a new slide (manual break).
@@ -17,32 +17,16 @@
  * image becomes a "[Image: alt]" placeholder line rather than being dropped
  * silently or half-embedded.
  *
- * Content is built with pptx-engine's own Paragraph/TextRun model via
- * addElement — the same primitive apps/slides' page-spec.ts uses to render a
- * generated deck from scratch — so slide XML is never hand-assembled here.
+ * This module is deliberately Node-free (browser-safe): the actual bytes are
+ * built in the main process (see apps/markdown/src/main/odp-export.ts) from
+ * the SlideContent[] this produces, sent over IPC — pptx-engine/odp-engine
+ * need node:crypto/node:fs for zip archive handling and would break the
+ * renderer bundle if imported here (electron-vite build target is the
+ * browser, which has no such module).
  */
 import type { JSONContent } from '@tiptap/core'
-import { addElement, createBlankPptx, insertBlankSlide, openPptx } from '@genoffice/pptx-engine'
-import type { Paragraph, Slide } from '@genoffice/pptx-engine'
-import { saveOdp } from '@genoffice/odp-engine'
+import type { BodyLine, SlideContent } from '../../shared/ipc'
 import { plainText } from './docxExport'
-
-type BulletKind = 'bullet' | 'ordered' | 'none'
-
-interface BodyLine {
-  text: string
-  level: number
-  bullet: BulletKind
-  bold?: boolean
-  mono?: boolean
-}
-
-interface SlideContent {
-  title: string | null
-  lines: BodyLine[]
-}
-
-const MONO_FONT = 'Consolas'
 
 function flattenInlineText(content: JSONContent[] | undefined): string {
   const parts: string[] = []
@@ -154,74 +138,4 @@ export function splitIntoSlides(doc: JSONContent): SlideContent[] {
   for (const node of doc.content ?? []) walk(node, 0)
   if (hasContent() || slides.length === 0) slides.push(current)
   return slides
-}
-
-function titleParagraph(text: string): Paragraph {
-  return { runs: [{ text, bold: true, fontSize: 32 }], bullet: { type: 'none' } }
-}
-
-function bodyParagraph(line: BodyLine): Paragraph {
-  const bulleted = line.bullet !== 'none'
-  const step = 228600 // 0.25in per indent level, matches the hanging bullet indent
-  return {
-    runs: [
-      {
-        text: line.text || ' ',
-        fontSize: line.bold ? 20 : 18,
-        ...(line.bold ? { bold: true } : {}),
-        ...(line.mono ? { fontFamily: MONO_FONT, latinFont: MONO_FONT } : {}),
-      },
-    ],
-    marL: bulleted ? step * (line.level + 1) : step * line.level,
-    indent: bulleted ? -step : 0,
-    spaceAfter: 8,
-    bullet:
-      line.bullet === 'bullet'
-        ? { type: 'char', char: '•' }
-        : line.bullet === 'ordered'
-          ? { type: 'number', numType: 'arabicPeriod' }
-          : { type: 'none' },
-  }
-}
-
-const MARGIN_EMU = 457200 // 0.5in
-const TITLE_HEIGHT_EMU = 1143000 // 1.25in
-const GAP_EMU = 182880 // 0.2in
-
-/** md document (PM JSON) -> brand-new .odp bytes, fully local (see file doc comment for the slide-split rule). */
-export async function exportOdpBytes(doc: JSONContent): Promise<Uint8Array> {
-  const slides = splitIntoSlides(doc)
-  const opened = await openPptx(await createBlankPptx())
-  const canvas = opened.deck.size
-  const bodyTop = MARGIN_EMU + TITLE_HEIGHT_EMU + GAP_EMU
-  const bodyWidth = canvas.cx - MARGIN_EMU * 2
-
-  const targets: Slide[] = [opened.deck.slides[0]!]
-  for (let i = 1; i < slides.length; i++) {
-    const slide = insertBlankSlide(opened, opened.deck.slides.length - 1)
-    if (!slide) throw new Error('odp export: failed to insert slide')
-    targets.push(slide)
-  }
-
-  slides.forEach((content, i) => {
-    const slide = targets[i]!
-    if (content.title) {
-      addElement(slide, {
-        kind: 'textbox',
-        offset: { x: MARGIN_EMU, y: MARGIN_EMU, cx: bodyWidth, cy: TITLE_HEIGHT_EMU },
-        paragraphs: [titleParagraph(content.title)],
-        bodyPr: { wrap: 'square', anchor: 't' },
-      })
-    }
-    if (content.lines.length) {
-      addElement(slide, {
-        kind: 'textbox',
-        offset: { x: MARGIN_EMU, y: bodyTop, cx: bodyWidth, cy: canvas.cy - bodyTop - MARGIN_EMU },
-        paragraphs: content.lines.map(bodyParagraph),
-        bodyPr: { wrap: 'square', anchor: 't', autoFit: 'shrink' },
-      })
-    }
-  })
-
-  return saveOdp(opened)
 }
