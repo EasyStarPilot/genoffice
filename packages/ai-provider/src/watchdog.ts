@@ -53,7 +53,9 @@ export function createStreamWatchdog(
   arm(connectMs)
   return {
     signal: controller.signal,
-    touch: () => arm(idleMs),
+    touch: () => {
+      if (!controller.signal.aborted) arm(idleMs)
+    },
     async guard<T>(run: () => Promise<T>): Promise<T> {
       try {
         return await run()

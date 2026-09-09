@@ -265,7 +265,11 @@ export class AgentLoop<TSnapshot = unknown> {
 
   /** images: inline attachments for this user turn (vision input; see AgentImage) */
   run(instruction: string, images?: AgentImage[]): void {
-    if (this.running || !instruction) return
+    if (this.running) return
+    if (!instruction) {
+      this.options.events?.onDone?.({ text: '', cancelled: false, turnLimit: false })
+      return
+    }
     this.running = true
     this.cancelled = false
     this.turns = 0
@@ -556,7 +560,7 @@ export class AgentLoop<TSnapshot = unknown> {
             this.toolCalls.length === 0
           ) {
             setTimeout(() => {
-              if (generation !== this.generation) return
+              if (generation !== this.generation || !this.running) return
               // Stopped during the backoff window: finalize like a normal cancel
               if (this.cancelled) {
                 void this.finishTurn()

@@ -230,39 +230,48 @@ async function geminiTurn(
     cb.onActivity?.()
   }
   const url = `${baseUrl.replace(/\/$/, '')}/models/${config.model}:streamGenerateContent?alt=sse`
-  const response = await aiFetch(url, {
-    method: 'POST',
-    signal: wd.signal,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': config.apiKey,
-      ...gensparkAttributionHeaders(baseUrl),
-    },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: geminiContents(messages),
-      ...(tools.length > 0
-        ? {
-            tools: [
-              {
-                functionDeclarations: tools.map((t) => ({
-                  name: t.name,
-                  description: t.description,
-                  parameters: toGeminiParameters(t.inputSchema),
-                })),
-              },
-            ],
-          }
-        : {}),
-      // Google recommends the default temperature (1.0) for the Gemini 3
-      // family — lower values may cause looping or degraded reasoning —
-      // so omit our hard-coded 0.3 for those models via omitTemperature.
-      generationConfig: {
-        ...(options.omitTemperature ? {} : { temperature: 0.3 }),
-        maxOutputTokens: maxTokens,
+  let response: Response
+  try {
+    response = await aiFetch(url, {
+      method: 'POST',
+      signal: wd.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': config.apiKey,
+        ...gensparkAttributionHeaders(baseUrl),
       },
-    }),
-  })
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: geminiContents(messages),
+        ...(tools.length > 0
+          ? {
+              tools: [
+                {
+                  functionDeclarations: tools.map((t) => ({
+                    name: t.name,
+                    description: t.description,
+                    parameters: toGeminiParameters(t.inputSchema),
+                  })),
+                },
+              ],
+            }
+          : {}),
+        // Google recommends the default temperature (1.0) for the Gemini 3
+        // family — lower values may cause looping or degraded reasoning —
+        // so omit our hard-coded 0.3 for those models via omitTemperature.
+        generationConfig: {
+          ...(options.omitTemperature ? {} : { temperature: 0.3 }),
+          maxOutputTokens: maxTokens,
+        },
+      }),
+    })
+  } catch (e) {
+    const err = e as { message?: unknown; cause?: { code?: unknown; message?: unknown } } | null
+    const causeText = err?.cause
+      ? ` cause=${String(err.cause.code || err.cause.message || err.cause)}`
+      : ''
+    throw new Error(`Gemini fetch failed: ${err?.message || String(e)}${causeText}`, { cause: e })
+  }
   // headers arrived: ping the renderer watchdog too, or a slow first chunk could trip it
   onBytes()
   if (!response.ok || !response.body) {

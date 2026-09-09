@@ -1,4 +1,4 @@
-import { readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { gskApiKey, gskListPastProjects, hasGskAuth } from '@genoffice/ai-search'
 import type { CloudProjectEntry, CloudProjectKind, CloudProjectsSnapshot } from '../shared/home-api'
@@ -147,7 +147,9 @@ async function doSync(storePath: string, owner: string): Promise<CloudProjectsSn
   }
   try {
     const stored: StoredSnapshot = { ...snapshot, owner }
-    writeFileSync(storePath, JSON.stringify(stored))
+    const tmp = `${storePath}.${process.pid}.tmp`
+    writeFileSync(tmp, JSON.stringify(stored))
+    renameSync(tmp, storePath)
   } catch {
     // store is best-effort; the fresh list still goes back to the renderer
   }

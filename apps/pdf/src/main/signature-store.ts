@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { SavedSignature, SignatureData } from '../shared/ipc'
 
@@ -90,6 +90,11 @@ export async function loadSignatures(filePath: string): Promise<SavedSignature[]
 export async function saveSignatures(filePath: string, list: SavedSignature[]): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true })
   const tmp = `${filePath}.${process.pid}.tmp`
-  await writeFile(tmp, JSON.stringify(list))
-  await rename(tmp, filePath)
+  try {
+    await writeFile(tmp, JSON.stringify(list))
+    await rename(tmp, filePath)
+  } catch (err) {
+    await rm(tmp, { force: true })
+    throw err
+  }
 }

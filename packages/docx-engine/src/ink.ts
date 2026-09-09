@@ -24,15 +24,6 @@ export const INK_NAME_PREFIX = 'aidocs-ink'
 /** media filename prefix for ink PNGs (distinct from inline-image aidocsN) */
 export const INK_MEDIA_PREFIX = 'aidocsink'
 
-/** matches a document.xml.rels entry that targets an ink media part */
-export const INK_REL_RE = new RegExp(
-  `<Relationship [^>]*Target="media/${INK_MEDIA_PREFIX}\\d+\\.png"[^>]*/>`,
-  'g',
-)
-
-/** matches an ink media part's zip path */
-export const INK_MEDIA_PATH_RE = new RegExp(`^word/media/${INK_MEDIA_PREFIX}\\d+\\.png$`)
-
 const EMU_PER_PX = 9525
 
 const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'

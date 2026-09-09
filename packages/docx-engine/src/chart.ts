@@ -532,7 +532,6 @@ function chartTitle(chart: XNode): string | undefined {
   return deleted ? undefined : 'Chart Title'
 }
 
-const _XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 export const CHART_WORKBOOK_REL_TYPE =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package'
 

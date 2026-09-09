@@ -5,7 +5,7 @@
  * pipeline in the main process. Imported by relative path (like the other
  * sibling app modules) so the bundled shell main carries the package inline.
  */
-import { readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { convertPdfToDocx, PdfLoadError } from '../../../../packages/pdf2docx/src'
 import type { ConvertResult, OcrEngine, PdfiumModule } from '../../../../packages/pdf2docx/src'
 import { resolvePlatformOcrEngine } from '../../../../packages/pdf2docx/src/ocr-vision'
@@ -37,16 +37,23 @@ let pdfiumPromise: Promise<PdfiumModule> | null = null
  *  the pptx exporter (pdf2pptx-local.ts) shares the same wasm singleton. */
 export function ensurePdfium(): Promise<PdfiumModule> {
   pdfiumPromise ??= (async () => {
-    const { init } = (await import('@embedpdf/pdfium')) as unknown as {
-      init(overrides: object): Promise<object>
+    try {
+      const { init } = (await import('@embedpdf/pdfium')) as unknown as {
+        init(overrides: object): Promise<object>
+      }
+      const raw = await readFile(pdfiumWasmPath())
+      // exact slice: Buffer.buffer may be a shared pool larger than the file
+      const wasmBinary = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength)
+      const wrapped = (await init({ wasmBinary })) as { pdfium?: unknown }
+      const m = (wrapped.pdfium ?? wrapped) as PdfiumModule & { _PDFiumExt_Init(): void }
+      m._PDFiumExt_Init()
+      return m
+    } catch (err) {
+      // Allow retry on next call (transient fs error, missing wasm on first
+      // try that is later downloaded, etc.)
+      pdfiumPromise = null
+      throw err
     }
-    const raw = readFileSync(pdfiumWasmPath())
-    // exact slice: Buffer.buffer may be a shared pool larger than the file
-    const wasmBinary = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength)
-    const wrapped = (await init({ wasmBinary })) as { pdfium?: unknown }
-    const m = (wrapped.pdfium ?? wrapped) as PdfiumModule & { _PDFiumExt_Init(): void }
-    m._PDFiumExt_Init()
-    return m
   })()
   return pdfiumPromise
 }
@@ -58,7 +65,7 @@ export async function convertPdfFileToDocxLocal(
   password?: string,
 ): Promise<ConvertResult> {
   const pdfium = await ensurePdfium()
-  const bytes = readFileSync(pdfPath)
+  const bytes = await readFile(pdfPath)
   const pdf = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   const ocr = ensureOcrEngine()
   return convertPdfToDocx(pdf, {

@@ -149,33 +149,42 @@ async function openAiCompatibleTurn(
     wd.touch()
     cb.onActivity?.()
   }
-  const response = await aiFetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
-    method: 'POST',
-    signal: wd.signal,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
-      ...gensparkAttributionHeaders(baseUrl),
-    },
-    body: JSON.stringify({
-      model: config.model,
-      ...(options.useMaxCompletionTokens
-        ? { max_completion_tokens: maxTokens }
-        : { max_tokens: maxTokens }),
-      messages: openAiMessages(system, messages, modelEchoesReasoning(config.model)),
-      ...(tools.length > 0
-        ? {
-            tools: tools.map((t) => ({
-              type: 'function',
-              function: { name: t.name, description: t.description, parameters: t.inputSchema },
-            })),
-          }
-        : {}),
-      ...(options.omitTemperature ? {} : { temperature: 0.3 }),
-      ...options.bodyExtras,
-      stream: true,
-    }),
-  })
+  let response: Response
+  try {
+    response = await aiFetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      signal: wd.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.apiKey}`,
+        ...gensparkAttributionHeaders(baseUrl),
+      },
+      body: JSON.stringify({
+        model: config.model,
+        ...(options.useMaxCompletionTokens
+          ? { max_completion_tokens: maxTokens }
+          : { max_tokens: maxTokens }),
+        messages: openAiMessages(system, messages, modelEchoesReasoning(config.model)),
+        ...(tools.length > 0
+          ? {
+              tools: tools.map((t) => ({
+                type: 'function',
+                function: { name: t.name, description: t.description, parameters: t.inputSchema },
+              })),
+            }
+          : {}),
+        ...(options.omitTemperature ? {} : { temperature: 0.3 }),
+        ...options.bodyExtras,
+        stream: true,
+      }),
+    })
+  } catch (e) {
+    const err = e as { message?: unknown; cause?: { code?: unknown; message?: unknown } } | null
+    const causeText = err?.cause
+      ? ` cause=${String(err.cause.code || err.cause.message || err.cause)}`
+      : ''
+    throw new Error(`OpenAI fetch failed: ${err?.message || String(e)}${causeText}`, { cause: e })
+  }
   // headers arrived: ping the renderer watchdog too, or a slow first chunk could trip it
   onBytes()
   if (!response.ok || !response.body) {

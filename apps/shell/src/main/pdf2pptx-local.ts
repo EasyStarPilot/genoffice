@@ -5,7 +5,7 @@
  * in the main process. Imported by relative path so the bundled shell main
  * carries the package inline.
  */
-import { readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { convertPdfToPptx } from '../../../../packages/pdf2docx/src'
 import type { ConvertPptxResult } from '../../../../packages/pdf2docx/src'
 import { convertWithPasswordRetry, ensurePdfium } from './pdf2docx-local'
@@ -19,7 +19,7 @@ export async function convertPdfFileToPptxLocal(
   password?: string,
 ): Promise<ConvertPptxResult> {
   const pdfium = await ensurePdfium()
-  const bytes = readFileSync(pdfPath)
+  const bytes = await readFile(pdfPath)
   const pdf = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   return convertPdfToPptx(pdf, {
     pdfium,
