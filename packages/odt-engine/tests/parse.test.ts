@@ -93,8 +93,14 @@ describe('parseOdt against hand-authored ODF XML', () => {
     const parsed = await parseOdt(await buildFixture())
     const table = parsed.blocks.find((b) => b.type === 'table')!
     expect(table.table!.rows).toEqual([
-      [{ paras: ['Metric'] }, { paras: ['Value'] }],
-      [{ paras: ['Revenue'] }, { paras: ['100'] }],
+      [
+        { paras: ['Metric'], richParas: [{ runs: [{ text: 'Metric' }] }] },
+        { paras: ['Value'], richParas: [{ runs: [{ text: 'Value' }] }] },
+      ],
+      [
+        { paras: ['Revenue'], richParas: [{ runs: [{ text: 'Revenue' }] }] },
+        { paras: ['100'], richParas: [{ runs: [{ text: '100' }] }] },
+      ],
     ])
   })
 

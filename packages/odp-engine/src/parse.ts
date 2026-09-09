@@ -28,7 +28,7 @@ import type {
   TextElement,
   TextRun,
 } from '@genoffice/pptx-engine'
-import { asXmlNode, xmlArray, xmlText, type XmlNode } from './xml-utils'
+import { asXmlNode, xmlArray, xmlText, reconstructElementXml, type XmlNode } from './xml-utils'
 import { DEFAULT_SLIDE_SIZE, odfRadiansToOoxmlRot, parseOdfLength, parseOdfPt } from './units'
 
 const ARRAY_TAGS = new Set([
@@ -72,12 +72,13 @@ export async function parseOdp(bytes: Uint8Array): Promise<OpenedPptx> {
   const content = asXmlNode(xmlParser.parse(contentXml))
   const root = asXmlNode(content['office:document-content'])
   const styles = collectStyles(root)
+  const gradients = collectGradients(root)
 
   const body = asXmlNode(root['office:body'])
   const presentation = asXmlNode(body['office:presentation'])
   const pages = xmlArray(presentation['draw:page'])
 
-  const slides: Slide[] = pages.map((page, i) => parsePage(page, i, styles))
+  const slides: Slide[] = pages.map((page, i) => parsePage(page, i, styles, gradients))
 
   return { deck: { slides, size, originalHash: archive.originalHash }, archive }
 }
@@ -154,12 +155,52 @@ function parseGeometry(node: XmlNode): Geometry {
   return { x, y, cx, cy, rot: 0 }
 }
 
-// ── fill / stroke (solid only — gradients approximate to their fill-color when present, hatch/bitmap fall back to no fill) ──
+// ── fill / stroke (solid + gradient — gradients parse their stop colors and angle; hatch/bitmap fall back to no fill) ──
 
-function parseFill(props: XmlNode): Fill | undefined {
+interface OdfGradient {
+  style: string
+  startColor: string
+  endColor: string
+  angle: number
+}
+
+function collectGradients(root: XmlNode): Map<string, OdfGradient> {
+  const map = new Map<string, OdfGradient>()
+  const officeStyles = asXmlNode(root['office:styles'])
+  for (const grad of xmlArray(officeStyles['draw:gradient'])) {
+    const name = grad['@_draw:name'] as string | undefined
+    if (!name) continue
+    map.set(name, {
+      style: (grad['@_draw:style'] as string) ?? 'linear',
+      startColor: (grad['@_draw:start-color'] as string) ?? '#000000',
+      endColor: (grad['@_draw:end-color'] as string) ?? '#ffffff',
+      angle: Number.parseFloat(grad['@_draw:angle'] as string ?? '0') || 0,
+    })
+  }
+  return map
+}
+
+function parseFill(props: XmlNode, gradients: Map<string, OdfGradient>): Fill | undefined {
   const kind = props['@_draw:fill'] as string | undefined
   if (kind === 'none') return { type: 'none' }
-  if (kind === 'solid' || kind === 'gradient') {
+  if (kind === 'solid') {
+    const color = props['@_draw:fill-color'] as string | undefined
+    if (color) return { type: 'solid', color }
+  }
+  if (kind === 'gradient') {
+    const gradName = props['@_draw:fill-gradient-name'] as string | undefined
+    const grad = gradName ? gradients.get(gradName) : undefined
+    if (grad) {
+      return {
+        type: 'gradient',
+        stops: [
+          { pos: 0, color: grad.startColor },
+          { pos: 1, color: grad.endColor },
+        ],
+        angle: grad.angle,
+      }
+    }
+    // Fallback: use inline fill-color if present
     const color = props['@_draw:fill-color'] as string | undefined
     if (color) return { type: 'solid', color }
   }
@@ -174,10 +215,10 @@ function parseStroke(props: XmlNode): Stroke | undefined {
   return { fill: { type: 'solid', color }, width }
 }
 
-function graphicFillStroke(style: XmlNode | undefined): { fill?: Fill; stroke?: Stroke } {
+function graphicFillStroke(style: XmlNode | undefined, gradients: Map<string, OdfGradient>): { fill?: Fill; stroke?: Stroke } {
   if (!style) return {}
   const props = asXmlNode(style['style:graphic-properties'])
-  const fill = parseFill(props)
+  const fill = parseFill(props, gradients)
   const stroke = parseStroke(props)
   return { ...(fill ? { fill } : {}), ...(stroke ? { stroke } : {}) }
 }
@@ -245,24 +286,53 @@ function paragraphRuns(p: XmlNode, styles: Map<string, XmlNode>): TextRun[] {
   return text ? [{ text }] : []
 }
 
-/** A text:p may contain text:line-break; pptx-engine's own model treats soft breaks as separate paragraphs (TextRun doc comment), so one text:p can yield several Paragraphs. */
+/**
+ * A text:p may contain text:line-break; pptx-engine's own model treats soft
+ * breaks as separate paragraphs (TextRun doc comment), so one text:p can
+ * yield several Paragraphs. This version properly tracks break positions
+ * within the run sequence by walking the XML children in order.
+ */
 function parseTextBodyParagraphs(paragraphs: XmlNode[], styles: Map<string, XmlNode>): Paragraph[] {
   const out: Paragraph[] = []
   for (const p of paragraphs) {
     const align = paragraphAlign(styleOf(styles, p['@_text:style-name']))
-    const breaks = xmlArray(p['text:line-break']).length
-    const runs = paragraphRuns(p, styles)
-    if (breaks === 0) {
-      out.push({ runs, ...(align ? { align } : {}) })
-      continue
+    // Walk children in document order to properly split at line breaks
+    const currentRuns: TextRun[] = []
+    let hasBreaks = false
+    for (const [key, value] of Object.entries(p)) {
+      if (key === 'text:line-break') {
+        hasBreaks = true
+        const breakCount = Array.isArray(value) ? value.length : 1
+        for (let i = 0; i < breakCount; i++) {
+          out.push({ runs: [...currentRuns], ...(align ? { align } : {}) })
+          currentRuns.length = 0
+        }
+      } else if (key === 'text:span') {
+        const spans = Array.isArray(value) ? value : [value]
+        for (const span of spans) {
+          const own = runPropsFromStyle(styleOf(styles, (span as XmlNode)['@_text:style-name']))
+          const nested = xmlArray((span as XmlNode)['text:span'])
+          if (nested.length > 0) {
+            for (const s of nested) {
+              currentRuns.push(...spanRuns(s as XmlNode, styles, own))
+            }
+          } else {
+            const text = xmlText(span)
+            if (text) currentRuns.push({ text, ...own })
+          }
+        }
+      } else if (key === '#text') {
+        const t = String(value)
+        if (t) currentRuns.push({ text: t })
+      }
     }
-    // Best-effort: line-break position within the run sequence isn't tracked
-    // by fast-xml-parser's collapsed structure either, so split the whole
-    // paragraph's runs evenly is wrong; instead keep all text on the first
-    // line and emit empty trailing lines for the remaining breaks — visually
-    // preserves line count without inventing text placement.
-    out.push({ runs, ...(align ? { align } : {}) })
-    for (let i = 0; i < breaks; i++) out.push({ runs: [], ...(align ? { align } : {}) })
+    if (!hasBreaks) {
+      // No breaks — use the existing paragraphRuns logic for compatibility
+      const runs = paragraphRuns(p, styles)
+      out.push({ runs, ...(align ? { align } : {}) })
+    } else if (currentRuns.length > 0 || out.length === 0) {
+      out.push({ runs: currentRuns, ...(align ? { align } : {}) })
+    }
   }
   return out.length > 0 ? out : [{ runs: [] }]
 }
@@ -275,12 +345,13 @@ function passthrough(
   geo: Geometry,
   kind: PassthroughElement['kind'],
   spIndex: number,
+  originalXml?: string,
 ): PassthroughElement {
   return {
     id: `odp-el-${spIndex}-${passthroughId++}`,
     type: 'passthrough',
     kind,
-    anchor: { spIndex, originalXml: '', range: [0, 0] },
+    anchor: { spIndex, originalXml: originalXml ?? '', range: [0, 0] },
     transform: { offset: { x: geo.x, y: geo.y, cx: geo.cx, cy: geo.cy }, rot: geo.rot, flipH: false, flipV: false },
   }
 }
@@ -290,10 +361,11 @@ function parseTextBoxFrame(
   textBox: XmlNode,
   styles: Map<string, XmlNode>,
   spIndex: number,
+  gradients: Map<string, OdfGradient>,
 ): TextElement {
   const geo = parseGeometry(frame)
   const style = styleOf(styles, frame['@_draw:style-name'])
-  const { fill, stroke } = graphicFillStroke(style)
+  const { fill, stroke } = graphicFillStroke(style, gradients)
   const paragraphs = parseTextBodyParagraphs(xmlArray(textBox['text:p']), styles)
   return {
     id: `odp-el-${spIndex}`,
@@ -306,10 +378,10 @@ function parseTextBoxFrame(
   }
 }
 
-function parseCustomShape(shape: XmlNode, styles: Map<string, XmlNode>, spIndex: number): TextElement {
+function parseCustomShape(shape: XmlNode, styles: Map<string, XmlNode>, spIndex: number, gradients: Map<string, OdfGradient>): TextElement {
   const geo = parseGeometry(shape)
   const style = styleOf(styles, shape['@_draw:style-name'])
-  const { fill, stroke } = graphicFillStroke(style)
+  const { fill, stroke } = graphicFillStroke(style, gradients)
   const paragraphs = parseTextBodyParagraphs(xmlArray(shape['text:p']), styles)
   return {
     id: `odp-el-${spIndex}`,
@@ -328,10 +400,11 @@ function parsePrimitiveShape(
   preset: 'rect' | 'ellipse',
   styles: Map<string, XmlNode>,
   spIndex: number,
+  gradients: Map<string, OdfGradient>,
 ): TextElement {
   const geo = parseGeometry(shape)
   const style = styleOf(styles, shape['@_draw:style-name'])
-  const { fill, stroke } = graphicFillStroke(style)
+  const { fill, stroke } = graphicFillStroke(style, gradients)
   const paragraphs = parseTextBodyParagraphs(xmlArray(shape['text:p']), styles)
   return {
     id: `odp-el-${spIndex}`,
@@ -357,48 +430,48 @@ function parsePictureFrame(frame: XmlNode, image: XmlNode, spIndex: number): Pic
   }
 }
 
-function parseFrame(frame: XmlNode, styles: Map<string, XmlNode>, spIndex: number): SlideElement {
+function parseFrame(frame: XmlNode, styles: Map<string, XmlNode>, spIndex: number, gradients: Map<string, OdfGradient>): SlideElement {
   if (frame['draw:text-box']) {
-    return parseTextBoxFrame(frame, asXmlNode(frame['draw:text-box']), styles, spIndex)
+    return parseTextBoxFrame(frame, asXmlNode(frame['draw:text-box']), styles, spIndex, gradients)
   }
   const images = xmlArray(frame['draw:image'])
   if (images[0]) return parsePictureFrame(frame, images[0], spIndex)
-  if (frame['table:table']) return passthrough(parseGeometry(frame), 'table', spIndex)
+  if (frame['table:table']) return passthrough(parseGeometry(frame), 'table', spIndex, reconstructElementXml(frame))
   if (frame['draw:object'] || frame['draw:object-ole']) {
-    return passthrough(parseGeometry(frame), 'ole', spIndex)
+    return passthrough(parseGeometry(frame), 'ole', spIndex, reconstructElementXml(frame))
   }
-  return passthrough(parseGeometry(frame), 'unknown', spIndex)
+  return passthrough(parseGeometry(frame), 'unknown', spIndex, reconstructElementXml(frame))
 }
 
-function parsePageElements(page: XmlNode, styles: Map<string, XmlNode>): SlideElement[] {
+function parsePageElements(page: XmlNode, styles: Map<string, XmlNode>, gradients: Map<string, OdfGradient>): SlideElement[] {
   const out: SlideElement[] = []
   let spIndex = 0
-  for (const frame of xmlArray(page['draw:frame'])) out.push(parseFrame(frame, styles, spIndex++))
+  for (const frame of xmlArray(page['draw:frame'])) out.push(parseFrame(frame, styles, spIndex++, gradients))
   for (const shape of xmlArray(page['draw:custom-shape'])) {
-    out.push(parseCustomShape(shape, styles, spIndex++))
+    out.push(parseCustomShape(shape, styles, spIndex++, gradients))
   }
-  for (const rect of xmlArray(page['draw:rect'])) out.push(parsePrimitiveShape(rect, 'rect', styles, spIndex++))
+  for (const rect of xmlArray(page['draw:rect'])) out.push(parsePrimitiveShape(rect, 'rect', styles, spIndex++, gradients))
   for (const ellipse of xmlArray(page['draw:ellipse'])) {
-    out.push(parsePrimitiveShape(ellipse, 'ellipse', styles, spIndex++))
+    out.push(parsePrimitiveShape(ellipse, 'ellipse', styles, spIndex++, gradients))
   }
-  for (const group of xmlArray(page['draw:g'])) out.push(passthrough(parseGeometry(group), 'unknown', spIndex++))
+  for (const group of xmlArray(page['draw:g'])) out.push(passthrough(parseGeometry(group), 'unknown', spIndex++, reconstructElementXml(group)))
   return out
 }
 
-function pageBackground(page: XmlNode, styles: Map<string, XmlNode>): Fill | undefined {
+function pageBackground(page: XmlNode, styles: Map<string, XmlNode>, gradients: Map<string, OdfGradient>): Fill | undefined {
   const style = styleOf(styles, page['@_draw:style-name'])
   const props = asXmlNode(style?.['style:drawing-page-properties'])
-  return parseFill(props)
+  return parseFill(props, gradients)
 }
 
-function parsePage(page: XmlNode, index: number, styles: Map<string, XmlNode>): Slide {
-  const background = pageBackground(page, styles)
+function parsePage(page: XmlNode, index: number, styles: Map<string, XmlNode>, gradients: Map<string, OdfGradient>): Slide {
+  const background = pageBackground(page, styles, gradients)
   return {
     path: `content.xml#page${index + 1}`,
     originalXml: '',
     bodyPrefix: '',
     bodySuffix: '',
-    elements: parsePageElements(page, styles),
+    elements: parsePageElements(page, styles, gradients),
     ...(background ? { background } : {}),
   }
 }

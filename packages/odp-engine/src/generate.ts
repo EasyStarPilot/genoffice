@@ -115,12 +115,47 @@ function planMedia(opened: OpenedPptx): MediaPlan {
   return { pathFor, manifestEntries }
 }
 
-// ── fill / stroke -> ODF attrs (solid only; gradients approximate to their first stop so a fill never silently vanishes) ──
+// ── fill / stroke -> ODF attrs (solid + gradient) ──
 
-function fillAttrs(fill: Fill | undefined): string {
+class GradientAcc {
+  private fragments: string[] = []
+  private n = 0
+  private names = new Map<string, string>()
+
+  getGradient(fill: Fill): string | undefined {
+    if (fill.type !== 'gradient') return undefined
+    const key = `${fill.stops.map((s) => `${s.pos}:${s.color}`).join(',')}|${fill.angle ?? 0}`
+    const existing = this.names.get(key)
+    if (existing) return existing
+    const name = `Grad${++this.n}`
+    this.names.set(key, name)
+    const startColor = fill.stops[0]?.color ?? '#000000'
+    const endColor = fill.stops[fill.stops.length - 1]?.color ?? '#ffffff'
+    const angle = fill.angle ?? 0
+    this.fragments.push(
+      `<draw:gradient draw:name="${escapeXmlAttr(name)}" draw:style="linear" ` +
+      `draw:start-color="${escapeXmlAttr(startColor)}" draw:end-color="${escapeXmlAttr(endColor)}" ` +
+      `draw:angle="${angle}"/>`,
+    )
+    return name
+  }
+
+  toXml(): string {
+    return this.fragments.length > 0
+      ? `<office:styles>${this.fragments.join('')}</office:styles>`
+      : '<office:styles/>'
+  }
+}
+
+function fillAttrs(fill: Fill | undefined, gradAcc?: GradientAcc): string {
   if (!fill || fill.type === 'none') return 'draw:fill="none"'
   if (fill.type === 'solid') return `draw:fill="solid" draw:fill-color="${escapeXmlAttr(fill.color)}"`
   if (fill.type === 'gradient') {
+    const gradName = gradAcc?.getGradient(fill)
+    if (gradName) {
+      return `draw:fill="gradient" draw:fill-gradient-name="${escapeXmlAttr(gradName)}"`
+    }
+    // Fallback: approximate to first stop color
     const color = fill.stops[0]?.color ?? '#808080'
     return `draw:fill="solid" draw:fill-color="${escapeXmlAttr(color)}"`
   }
@@ -138,20 +173,21 @@ function strokeAttrs(stroke: Stroke | undefined): string {
 class StyleAcc {
   private fragments: string[] = []
   private n = 0
+  readonly gradients = new GradientAcc()
   private id(prefix: string): string {
     return `${prefix}${++this.n}`
   }
   graphic(fill: Fill | undefined, stroke: Stroke | undefined): string {
     const name = this.id('gr')
     this.fragments.push(
-      `<style:style style:name="${name}" style:family="graphic"><style:graphic-properties ${fillAttrs(fill)} ${strokeAttrs(stroke)} draw:textarea-horizontal-align="center" draw:textarea-vertical-align="middle" draw:auto-grow-height="false"/></style:style>`,
+      `<style:style style:name="${name}" style:family="graphic"><style:graphic-properties ${fillAttrs(fill, this.gradients)} ${strokeAttrs(stroke)} draw:textarea-horizontal-align="center" draw:textarea-vertical-align="middle" draw:auto-grow-height="false"/></style:style>`,
     )
     return name
   }
   drawingPage(fill: Fill | undefined): string {
     const name = this.id('dp')
     this.fragments.push(
-      `<style:style style:name="${name}" style:family="drawing-page"><style:drawing-page-properties ${fillAttrs(fill)}/></style:style>`,
+      `<style:style style:name="${name}" style:family="drawing-page"><style:drawing-page-properties ${fillAttrs(fill, this.gradients)}/></style:style>`,
     )
     return name
   }
@@ -265,10 +301,13 @@ function elementXml(el: SlideElement, acc: StyleAcc, media: MediaPlan): string {
     const path = media.pathFor.get(el.mediaRef) ?? el.mediaRef
     return pictureElementXml(el, acc, path)
   }
-  // table/chart/group/passthrough: not supported for write in v1 — emitting
-  // nothing drops the shape rather than emitting a shape this engine cannot
-  // parse back correctly. A geometry-only ODF placeholder would be actively
-  // misleading (an empty box the user never drew).
+  // table/chart/group/passthrough: emit the original XML preserved during
+  // parse so these elements survive a round-trip even though this engine
+  // cannot edit them. If no original XML was captured (e.g. a newly-created
+  // passthrough), emit nothing rather than invalid output.
+  if (el.type === 'passthrough' && el.anchor.originalXml) {
+    return el.anchor.originalXml
+  }
   return ''
 }
 
@@ -296,6 +335,7 @@ function contentXml(opened: OpenedPptx, media: MediaPlan): string {
     'xmlns:xlink="http://www.w3.org/1999/xlink" ' +
     'xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0" ' +
     'office:version="1.2">' +
+    acc.gradients.toXml() +
     '<office:automatic-styles>' +
     acc.toXml() +
     '</office:automatic-styles>' +

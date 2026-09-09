@@ -10,9 +10,18 @@
  * plain data into ODF XML, it knows nothing about ProseMirror).
  */
 import JSZip from 'jszip'
-import type { GeneratedBlock, ParaAlign, Run, TableModel } from '@genoffice/docx-engine'
+import type { GeneratedBlock, ParaAlign, Run, TableModel, TableParagraph } from '@genoffice/docx-engine'
 import { escapeXmlAttr, escapeXmlText } from './xml-utils'
 import { halfPointsToOdfPt } from './units'
+
+export interface OdtPageLayout {
+  pageWidth: string
+  pageHeight: string
+  marginTop: string
+  marginBottom: string
+  marginLeft: string
+  marginRight: string
+}
 
 export type OdtSaveBlock =
   | { kind: 'text'; block: GeneratedBlock }
@@ -158,18 +167,24 @@ function paragraphLikeXml(tag: 'text:p' | 'text:h', block: GeneratedBlock, acc: 
   return `<${tag}${attrs}${levelAttr}>${body}</${tag}>`
 }
 
-function tableXml(model: TableModel): string {
+function tableCellParasXml(cell: { paras: string[]; richParas?: TableParagraph[] }, acc: StyleAcc): string {
+  const paras = cell.richParas?.length
+    ? cell.richParas.map((rp) => rp.runs.map((r) => runXml(r, acc)).join(''))
+    : cell.paras.map((t) => escapeXmlText(t))
+  return paras.length > 0
+    ? paras.map((body) => `<text:p>${body}</text:p>`).join('')
+    : '<text:p/>'
+}
+
+function tableXml(model: TableModel, acc: StyleAcc): string {
   const rows = model.rows
     .map((row) => {
       const cells = row
         .map((cell) => {
-          const paras =
-            cell.paras.length > 0
-              ? cell.paras.map((t) => `<text:p>${escapeXmlText(t)}</text:p>`).join('')
-              : '<text:p/>'
+          const body = tableCellParasXml(cell, acc)
           const span =
             cell.colSpan && cell.colSpan > 1 ? ` table:number-columns-spanned="${cell.colSpan}"` : ''
-          return `<table:table-cell office:value-type="string"${span}>${paras}</table:table-cell>`
+          return `<table:table-cell office:value-type="string"${span}>${body}</table:table-cell>`
         })
         .join('')
       return `<table:table-row>${cells}</table:table-row>`
@@ -189,7 +204,7 @@ interface BlockEntry {
 
 function blockXml(block: OdtSaveBlock, acc: StyleAcc): BlockEntry {
   if (block.kind === 'table')
-    return { xml: tableXml(block.model), isListItem: false, ilvl: 0, kind: 'bullet' }
+    return { xml: tableXml(block.model, acc), isListItem: false, ilvl: 0, kind: 'bullet' }
   if (block.kind === 'image') {
     const styleName = acc.frame(block.widthPx, block.heightPx)
     const frame = drawImageXml(block.dataUrl, styleName, 'paragraph', acc)
@@ -323,7 +338,13 @@ function contentXml(blocks: OdtSaveBlock[], acc: StyleAcc): string {
   )
 }
 
-function stylesXml(): string {
+function stylesXml(pageLayout?: OdtPageLayout): string {
+  const pw = pageLayout?.pageWidth ?? '21.001cm'
+  const ph = pageLayout?.pageHeight ?? '29.7cm'
+  const mt = pageLayout?.marginTop ?? '2cm'
+  const mb = pageLayout?.marginBottom ?? '2cm'
+  const ml = pageLayout?.marginLeft ?? '2cm'
+  const mr = pageLayout?.marginRight ?? '2cm'
   return (
     '<?xml version="1.0" encoding="UTF-8"?>' +
     '<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" ' +
@@ -332,7 +353,7 @@ function stylesXml(): string {
     'office:version="1.2">' +
     '<office:styles/>' +
     '<office:automatic-styles>' +
-    '<style:page-layout style:name="PM1"><style:page-layout-properties fo:page-width="21.001cm" fo:page-height="29.7cm" fo:margin-top="2cm" fo:margin-bottom="2cm" fo:margin-left="2cm" fo:margin-right="2cm"/></style:page-layout>' +
+    `<style:page-layout style:name="PM1"><style:page-layout-properties fo:page-width="${pw}" fo:page-height="${ph}" fo:margin-top="${mt}" fo:margin-bottom="${mb}" fo:margin-left="${ml}" fo:margin-right="${mr}"/></style:page-layout>` +
     '</office:automatic-styles>' +
     '<office:master-styles><style:master-page style:name="Standard" style:page-layout-name="PM1"/></office:master-styles>' +
     '</office:document-styles>'
@@ -368,7 +389,7 @@ function manifestXml(media: Array<{ path: string; mime: string }>): string {
   )
 }
 
-export async function saveOdt(blocks: OdtSaveBlock[]): Promise<Uint8Array> {
+export async function saveOdt(blocks: OdtSaveBlock[], pageLayout?: OdtPageLayout): Promise<Uint8Array> {
   const acc = new StyleAcc()
   let xml = contentXml(blocks, acc)
 
@@ -385,7 +406,7 @@ export async function saveOdt(blocks: OdtSaveBlock[]): Promise<Uint8Array> {
   zip.file('mimetype', ODT_MIME, { compression: 'STORE' })
   zip.file('META-INF/manifest.xml', manifestXml(media))
   zip.file('meta.xml', metaXml())
-  zip.file('styles.xml', stylesXml())
+  zip.file('styles.xml', stylesXml(pageLayout))
   zip.file('content.xml', xml)
   return zip.generateAsync({
     type: 'uint8array',
@@ -394,7 +415,7 @@ export async function saveOdt(blocks: OdtSaveBlock[]): Promise<Uint8Array> {
   })
 }
 
-export async function saveOdtToFile(blocks: OdtSaveBlock[], filePath: string): Promise<void> {
+export async function saveOdtToFile(blocks: OdtSaveBlock[], filePath: string, pageLayout?: OdtPageLayout): Promise<void> {
   const { writeFile } = await import('node:fs/promises')
-  await writeFile(filePath, await saveOdt(blocks))
+  await writeFile(filePath, await saveOdt(blocks, pageLayout))
 }

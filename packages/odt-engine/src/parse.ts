@@ -18,6 +18,7 @@
 import JSZip from 'jszip'
 import { XMLParser } from 'fast-xml-parser'
 import type { Block, ParsedDocFull, ParaAlign, Run, TableCell, TableModel } from '@genoffice/docx-engine'
+import type { OdtPageLayout } from './generate'
 import { asXmlNode, xmlArray, type XmlNode } from './xml-utils'
 import { parseOdfHalfPoints, parseOdfLengthTwips } from './units'
 import { odtNumberingDefs, ODT_BULLET_NUM_ID, ODT_ORDERED_NUM_ID } from './numbering'
@@ -76,9 +77,11 @@ export async function parseOdt(bytes: Uint8Array): Promise<ParsedDocFull> {
   // styles.xml's office:styles, not content.xml's automatic-styles — merge
   // them in (automatic-styles wins on a name collision, the more specific one).
   const stylesFile = zip.file('styles.xml')
+  const stylesXml = stylesFile ? (await stylesFile.async('string')) : null
+  const pageLayout = parsePageLayout(stylesXml)
   if (stylesFile) {
-    const stylesXml = asXmlNode(xmlParser.parse(await stylesFile.async('string')))
-    const stylesRoot = asXmlNode(stylesXml['office:document-styles'])
+    const stylesXmlDoc = asXmlNode(xmlParser.parse(stylesXml!))
+    const stylesRoot = asXmlNode(stylesXmlDoc['office:document-styles'])
     const officeStyles = asXmlNode(stylesRoot['office:styles'])
     for (const style of xmlArray(officeStyles['style:style'])) {
       const name = style['@_style:name'] as string | undefined
@@ -158,6 +161,18 @@ function collectImageHrefs(nodes: readonly XmlNode[], out: Set<string>): void {
   }
 }
 
+/** Parse the page layout (page size + margins) from an ODT file's styles.xml. */
+export async function parseOdtPageLayout(bytes: Uint8Array): Promise<OdtPageLayout | undefined> {
+  try {
+    const zip = await JSZip.loadAsync(bytes)
+    const stylesFile = zip.file('styles.xml')
+    if (!stylesFile) return undefined
+    return parsePageLayout(await stylesFile.async('string'))
+  } catch {
+    return undefined
+  }
+}
+
 // ── automatic-styles: style:name -> raw style node ──
 
 function collectStyles(root: XmlNode): Map<string, XmlNode> {
@@ -168,6 +183,35 @@ function collectStyles(root: XmlNode): Map<string, XmlNode> {
     if (name) map.set(name, style)
   }
   return map
+}
+
+function parsePageLayout(stylesXml: string | null): OdtPageLayout | undefined {
+  if (!stylesXml) return undefined
+  try {
+    const doc = asXmlNode(xmlParser.parse(stylesXml))
+    const root = asXmlNode(doc['office:document-styles'])
+    const autoStyles = asXmlNode(root['office:automatic-styles'])
+    const layout = xmlArray(autoStyles['style:page-layout'])[0]
+    if (!layout) return undefined
+    const props = asXmlNode(layout['style:page-layout-properties'])
+    const pw = props['@_fo:page-width'] as string | undefined
+    const ph = props['@_fo:page-height'] as string | undefined
+    const mt = props['@_fo:margin-top'] as string | undefined
+    const mb = props['@_fo:margin-bottom'] as string | undefined
+    const ml = props['@_fo:margin-left'] as string | undefined
+    const mr = props['@_fo:margin-right'] as string | undefined
+    if (!pw && !ph) return undefined
+    return {
+      pageWidth: pw ?? '21.001cm',
+      pageHeight: ph ?? '29.7cm',
+      marginTop: mt ?? '2cm',
+      marginBottom: mb ?? '2cm',
+      marginLeft: ml ?? '2cm',
+      marginRight: mr ?? '2cm',
+    }
+  } catch {
+    return undefined
+  }
 }
 
 function styleOf(styles: Map<string, XmlNode>, name: unknown): XmlNode | undefined {
@@ -336,14 +380,27 @@ function paragraphPlainText(nodes: readonly XmlNode[]): string {
   return runs.map((r) => r.text).join('')
 }
 
-function parseTable(table: XmlNode): TableModel {
+function parseTable(
+  table: XmlNode,
+  styles: Map<string, XmlNode>,
+  media: Map<string, string>,
+): TableModel {
   const rows: TableCell[][] = []
   for (const row of xmlArray(table['table:table-row'])) {
     const cells: TableCell[] = []
     for (const cell of xmlArray(row['table:table-cell'])) {
       const paras = xmlArray(cell['text:p']).map((p) => paragraphPlainText([p]))
+      const richParas = xmlArray(cell['text:p']).map((p) => {
+        const runs: Run[] = []
+        collectRuns([p], styles, media, {}, runs)
+        return { runs }
+      })
       const colSpan = Number(cell['@_table:number-columns-spanned'] ?? 1) || 1
-      cells.push({ paras: paras.length > 0 ? paras : [''], ...(colSpan > 1 ? { colSpan } : {}) })
+      cells.push({
+        paras: paras.length > 0 ? paras : [''],
+        ...(richParas.length > 0 ? { richParas } : {}),
+        ...(colSpan > 1 ? { colSpan } : {}),
+      })
     }
     if (cells.length > 0) rows.push(cells)
   }
@@ -435,7 +492,7 @@ function walkBody(
             type: 'table',
             docxIndex: null,
             originalXml: null,
-            table: parseTable(table),
+            table: parseTable(table, styles, media),
           })
         }
       } else if (key === 'text:list') {

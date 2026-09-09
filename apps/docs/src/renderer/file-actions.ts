@@ -38,7 +38,7 @@ import {
   type ThemeFonts,
   type WriteProtection,
 } from '@genoffice/docx-engine'
-import { parseOdt, saveOdt } from '@genoffice/odt-engine'
+import { parseOdt, parseOdtPageLayout, saveOdt } from '@genoffice/odt-engine'
 import type { Dispatch, SetStateAction } from 'react'
 import type { AiDocContent, OpenDocxResult } from '../shared/ipc'
 import {
@@ -491,7 +491,8 @@ export async function buildDocBytes(ctx: FileActionContext): Promise<Uint8Array 
     // odt has none of the docx-specific save-plan machinery below (sections,
     // headers/footers, charts, ink, comments, protection, ...) — the engine
     // fully regenerates content.xml from the live PM doc every save.
-    return saveOdt(pmDocToOdtSaveBlocks(editor.getJSON() as PmNode))
+    const pageLayout = await parseOdtPageLayout(doc.parsed.internal.originalBytes)
+    return saveOdt(pmDocToOdtSaveBlocks(editor.getJSON() as PmNode), pageLayout)
   }
   const plan = pmDocToSavePlan(editor.getJSON() as PmNode, doc.parsed.blocks)
   // chart data edits patch the chart's own zip part, not the body XML

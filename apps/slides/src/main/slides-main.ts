@@ -1148,7 +1148,7 @@ export function registerSlidesIpc(): void {
     const parent = dialogParent()
     const options = {
       properties: ['openFile' as const],
-      filters: [{ name: 'PowerPoint', extensions: ['pptx', 'ppt'] }],
+      filters: [{ name: 'Presentations', extensions: ['pptx', 'ppt', 'odp'] }],
     }
     const r = await showOpenDialogWithMemory(dialog, parent, options)
     if (r.canceled || !r.filePaths[0]) return null
