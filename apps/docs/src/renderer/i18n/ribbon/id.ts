@@ -12,6 +12,8 @@ export const id = {
   ribbonTabLayout: 'Tata Letak',
   ribbonTabReferences: 'Referensi',
   ribbonTabReview: 'Tinjau',
+  ribbonCollapse: 'Ciutkan Pita',
+  ribbonPin: 'Sematkan Pita',
   ribbonTabView: 'Tampilan',
   ribbonTabTableDesign: 'Desain Tabel',
   ribbonTabTableLayout: 'Tata Letak Tabel',
@@ -149,6 +151,10 @@ export const id = {
   ribbonOuterBordersTip: 'Batas hanya di tepi luar pilihan',
   ribbonInnerBorders: 'Batas Dalam',
   ribbonInnerBordersTip: 'Batas hanya di bagian dalam pilihan',
+  ribbonTableInsideHBorders: 'Inside Horizontal',
+  ribbonTableInsideHBordersTip: 'Inside horizontal borders for the whole table',
+  ribbonTableInsideVBorders: 'Inside Vertical',
+  ribbonTableInsideVBordersTip: 'Inside vertical borders for the whole table',
   ribbonClearBordersTip: 'Hapus batas dari sel yang dipilih',
   ribbonBorderColor: 'Warna batas',
   ribbonBorderWidth: 'Ketebalan batas',
@@ -292,6 +298,8 @@ export const id = {
   ribbonChartAddCategory: '+ Kategori',
   ribbonChartAddSeries: '+ Seri',
   ribbonLinkInsertTitle: 'Sisipkan Hyperlink',
+  ribbonLinkEditTitle: 'Edit Hyperlink',
+  ribbonLinkRemove: 'Hapus Tautan',
   ribbonLinkText: 'Teks yang ditampilkan',
   ribbonLinkTextPh: 'Teks tautan (kosongkan untuk menampilkan alamat)',
   ribbonLinkAddress: 'Alamat',
@@ -571,6 +579,9 @@ export const id = {
   ribbonEditorPrompt:
     'Koreksi seluruh dokumen: perbaiki salah ketik, tanda baca, dan kesalahan tata bahasa tanpa mengubah makna asli dan struktur paragraf.',
   ribbonGroupProofing: 'Pemeriksaan',
+  ribbonSpellcheckBtn: 'Ejaan',
+  ribbonSpellcheckTip:
+    'Periksa ejaan saat mengetik — menggarisbawahi merah kata yang mungkin salah eja',
   ribbonTranslate: 'Terjemahkan',
   ribbonTranslateTip: 'AI menerjemahkan dokumen',
   ribbonTranslatePrompt:

@@ -1,3 +1,5 @@
+import { CellValueType } from '@univerjs/core'
+
 import type {
   WorkbookCellEdit,
   WorkbookBulkConstantFill,
@@ -18,6 +20,7 @@ import { splitSheetRef } from '../domain/chart-visual'
 import { CHART_CATEGORY_WIRE_MAX, CHART_TEXT_WIRE_MAX } from '../shared/desktop-api'
 import { ADDABLE_SHAPE_TYPES } from '../shared/shape-types'
 import { INDENT_STEP_PX } from './selection-format'
+import type { SharedFormulaResolver } from './shared-formula-journal'
 
 /// Tracks the user's cell edits on a streamed external workbook. Streaming
 /// evicts and re-installs viewport cells, so the journal is both the save
@@ -221,6 +224,10 @@ export interface PageSetupJournalState {
   printGridlines?: boolean
   printHeadings?: boolean
   showGridlines?: boolean
+  /// sheetView/@zoomScale (10-400): normal-view zoom percent. Excel persists
+  /// zoom in the file; unjournaled, the post-save session reload snapped the
+  /// view back to the file's stored zoom (alpha r165).
+  zoomScale?: number
   /// sheetView/@showFormulas: the sheet renders formulas instead of values.
   showFormulas?: boolean
   /// sheetView/@showRowColHeaders: row/column heading strips.
@@ -1546,11 +1553,15 @@ export function journalCellContentAt(
 }
 
 /// Ingests a `sheet.mutation.set-range-values` payload. Returns the entries
-/// that were recorded.
+/// that were recorded. `resolveSharedFormula` materializes shared-formula
+/// followers (`si` with no `f` — tiled paste / fill) into a concrete formula
+/// string; without it such cells journal as plain values and the follow-up
+/// recalc mutation can wipe them entirely.
 export function recordSetRangeValues(
   journal: EditJournal,
   sheetId: string,
   cellValue: unknown,
+  resolveSharedFormula?: SharedFormulaResolver,
 ): JournalEntry[] {
   if (typeof cellValue !== 'object' || cellValue === null) return []
   const recorded: JournalEntry[] = []
@@ -1561,7 +1572,16 @@ export function recordSetRangeValues(
     for (const [columnKey, cell] of Object.entries(rowValue as Record<string, unknown>)) {
       const column = Number(columnKey)
       if (!Number.isInteger(column) || column < 0) continue
-      const entry = mergeIntoJournal(journal, sheetId, row, column, cell)
+      let ingest = cell
+      if (resolveSharedFormula && typeof cell === 'object' && cell !== null) {
+        const data = cell as { f?: unknown; si?: unknown }
+        const hasFormula = typeof data.f === 'string' && data.f.length > 0
+        if (!hasFormula && typeof data.si === 'string' && data.si.length > 0) {
+          const materialized = resolveSharedFormula(row, column, data.si)
+          if (materialized) ingest = { ...cell, f: materialized }
+        }
+      }
+      const entry = mergeIntoJournal(journal, sheetId, row, column, ingest)
       if (entry) recorded.push(entry)
     }
   }
@@ -1706,7 +1726,7 @@ function mergeCellIntoEntry(
     // only an explicit `f: null` (editor overwrite) clears a journaled
     // formula — otherwise the value is just the formula's cached result.
     const isCalculationResult = previous?.formula !== undefined && !('f' in data)
-    const raw = data.v
+    const raw = plainCellValue(data.v, data.t)
     if (isCalculationResult) {
       // keep the journaled formula; the file stores <f> and Excel recalcs
     } else if (raw === null || raw === undefined) {
@@ -1737,6 +1757,16 @@ function mergeCellIntoEntry(
     ...(rich === undefined ? {} : { rich }),
     ...(styleReset ? { styleReset: true } : {}),
   }
+}
+
+/// Univer keeps booleans as `{v: 0|1, t: BOOLEAN}` (set-range-values
+/// normalizes a bare `true` the same way); the file model needs a real
+/// boolean or the save writes a number where Excel had TRUE/FALSE.
+export function plainCellValue(v: unknown, t: unknown): unknown {
+  if (t !== CellValueType.BOOLEAN) return v
+  if (typeof v === 'number') return v !== 0
+  if (typeof v === 'string') return v === '1' || v.toUpperCase() === 'TRUE'
+  return v
 }
 
 /// CSS <family-name>s can't start with a digit unless quoted or escaped, and
@@ -1883,6 +1913,14 @@ const UNIVER_VERTICAL: Record<number, WorkbookStyleEdit['verticalAlignment']> = 
   3: 'bottom',
 }
 
+/// "No fill" as a Univer bg value. Univer composes cell/row/column styles by
+/// key, so a MISSING bg lets a <col style=> fill bleed through the cell —
+/// and set-range-values strips `bg: null` (Tools.removeNull), so null cannot
+/// pin it. An empty rgb is defined (blocks the compose fallthrough) yet falsy
+/// for every painter that checks bg.rgb. Shared by the file installer, the
+/// journal overlay replay, and the ribbon's No Fill.
+export const NO_FILL_STYLE: { readonly rgb: '' } = { rgb: '' }
+
 /// Converts a Univer IStyleData delta (from a set-range-values mutation) to
 /// the renderer-neutral wire format. Unknown keys are ignored; `null` values
 /// mean "remove the attribute" and map to explicit `false`.
@@ -1902,14 +1940,15 @@ export function toNeutralStyle(s: Record<string, unknown>): WorkbookStyleEdit | 
     style.fontFamily = unescapeCssLeadingDigit(s.ff)
   }
   if (typeof s.fs === 'number' && Number.isFinite(s.fs) && s.fs > 0) style.fontSize = s.fs
-  if ('cl' in s && s.cl === null) {
-    style.fontColor = null
-  } else {
-    const fontColor = extractRgb(s.cl)
-    if (fontColor) style.fontColor = fontColor
+  if ('cl' in s) {
+    if (isColorClear(s.cl)) style.fontColor = null
+    else {
+      const fontColor = extractRgb(s.cl)
+      if (fontColor) style.fontColor = fontColor
+    }
   }
   if ('bg' in s) {
-    if (s.bg === null) style.fillColor = null
+    if (isColorClear(s.bg)) style.fillColor = null
     else {
       const fillColor = extractRgb(s.bg)
       if (fillColor) style.fillColor = fillColor
@@ -1976,6 +2015,20 @@ function extractRgb(value: unknown): string | undefined {
   return match?.[1] ? `#${match[1].toUpperCase()}` : undefined
 }
 
+/// The three shapes Univer uses for "no color": a bare `null` (Clear
+/// Formats / setFontColor(null)), `{ rgb: null }` (the facade's
+/// setBackground(null) and the reset-*-color commands — SetStyleCommand
+/// always wraps the value in `{ rgb }`), and the empty-rgb sentinel the
+/// installer writes for fill-less xfs (see toUniverStyle). Missing any of
+/// them left "No Fill" out of the journal: the ribbon showed the fill gone,
+/// Save stayed disabled, and the file kept the fill.
+function isColorClear(value: unknown): boolean {
+  if (value === null) return true
+  if (typeof value !== 'object') return false
+  const rgb = (value as Record<string, unknown>).rgb
+  return rgb === null || rgb === ''
+}
+
 const XLSX_HORIZONTAL_TO_UNIVER: Record<string, number> = {
   left: 1,
   center: 2,
@@ -2007,7 +2060,10 @@ export function fromNeutralStyle(style: WorkbookStyleEdit): Record<string, unkno
     s.cl = style.fontColor === null ? null : { rgb: style.fontColor }
   }
   if (style.fillColor !== undefined) {
-    s.bg = style.fillColor === null ? null : { rgb: style.fillColor }
+    // Same empty-rgb sentinel as toUniverStyle: a bare bg: null is stripped
+    // by the mutation's removeNull, after which a <col style=> fill composes
+    // straight back through the cell the user just cleared.
+    s.bg = style.fillColor === null ? { ...NO_FILL_STYLE } : { rgb: style.fillColor }
   }
   if (style.horizontalAlignment !== undefined) {
     s.ht = XLSX_HORIZONTAL_TO_UNIVER[style.horizontalAlignment]

@@ -12,6 +12,8 @@ export const pt = {
   ribbonTabLayout: 'Layout',
   ribbonTabReferences: 'Referências',
   ribbonTabReview: 'Revisão',
+  ribbonCollapse: 'Recolher a Faixa de Opções',
+  ribbonPin: 'Fixar a Faixa de Opções',
   ribbonTabView: 'Exibir',
   ribbonTabTableDesign: 'Design da Tabela',
   ribbonTabTableLayout: 'Layout da Tabela',
@@ -150,6 +152,10 @@ export const pt = {
   ribbonOuterBordersTip: 'Bordas apenas no contorno externo da seleção',
   ribbonInnerBorders: 'Bordas Internas',
   ribbonInnerBordersTip: 'Bordas apenas no interior da seleção',
+  ribbonTableInsideHBorders: 'Inside Horizontal',
+  ribbonTableInsideHBordersTip: 'Inside horizontal borders for the whole table',
+  ribbonTableInsideVBorders: 'Inside Vertical',
+  ribbonTableInsideVBordersTip: 'Inside vertical borders for the whole table',
   ribbonClearBordersTip: 'Limpar as bordas das células selecionadas',
   ribbonBorderColor: 'Cor da borda',
   ribbonBorderWidth: 'Espessura da borda',
@@ -293,6 +299,8 @@ export const pt = {
   ribbonChartAddCategory: '+ Categoria',
   ribbonChartAddSeries: '+ Série',
   ribbonLinkInsertTitle: 'Inserir Hiperlink',
+  ribbonLinkEditTitle: 'Editar hiperlink',
+  ribbonLinkRemove: 'Remover link',
   ribbonLinkText: 'Texto para exibição',
   ribbonLinkTextPh: 'Texto do link (deixe em branco para mostrar o endereço)',
   ribbonLinkAddress: 'Endereço',
@@ -571,6 +579,9 @@ export const pt = {
   ribbonEditorPrompt:
     'Revise todo o documento: corrija erros de digitação, pontuação e gramática mantendo o sentido original e a estrutura dos parágrafos.',
   ribbonGroupProofing: 'Revisão de Texto',
+  ribbonSpellcheckBtn: 'Ortografia',
+  ribbonSpellcheckTip:
+    'Verificar a ortografia ao digitar — sublinha em vermelho palavras possivelmente erradas',
   ribbonTranslate: 'Traduzir',
   ribbonTranslateTip: 'A IA traduz o documento',
   ribbonTranslatePrompt:

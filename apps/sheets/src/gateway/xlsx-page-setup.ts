@@ -28,6 +28,8 @@ export interface SheetPageSetupState {
   readonly printGridlines?: boolean | undefined
   readonly printHeadings?: boolean | undefined
   readonly showGridlines?: boolean | undefined
+  /// Normal-view zoom percent (10-400); 100 drops the attributes.
+  readonly zoomScale?: number | undefined
   readonly showFormulas?: boolean | undefined
   readonly showHeadings?: boolean | undefined
   readonly printArea?: string | null | undefined
@@ -267,7 +269,9 @@ function setHeaderFooter(
     const pattern = headerFooterSectionPattern(tag)
     const element = text === '' ? '' : `<${tag}>${text}</${tag}>`
     if (pattern.test(body)) {
-      body = body.replace(pattern, element)
+      // function replacer: the element carries user text, and "$'000" / "$&"
+      // in a header would otherwise expand as String.replace patterns
+      body = body.replace(pattern, () => element)
       return
     }
     if (element === '') return
@@ -337,6 +341,14 @@ export function applyPageSetupState(worksheetXml: string, state: SheetPageSetupS
   if (state.showFormulas !== undefined) {
     // showFormulas defaults to false; drop the attribute to restore it.
     xml = setSheetViewAttr(xml, 'showFormulas', state.showFormulas ? '1' : null)
+  }
+  if (state.zoomScale !== undefined) {
+    // 100 is the default — drop the attributes. zoomScaleNormal keeps the
+    // normal-view zoom authoritative for files saved in page-layout /
+    // page-break view (the open path prefers it there).
+    const zoom = state.zoomScale === 100 ? null : String(state.zoomScale)
+    xml = setSheetViewAttr(xml, 'zoomScale', zoom)
+    xml = setSheetViewAttr(xml, 'zoomScaleNormal', zoom)
   }
   if (state.showHeadings !== undefined) {
     // showRowColHeaders defaults to true; write "0" to hide.
@@ -445,7 +457,7 @@ export function applyPrintAreas(
     }
   }
   // An emptied definedNames section is dropped entirely rather than written empty.
-  return xml.replace(/<definedNames>\s*<\/definedNames>/, '')
+  return xml.replace(/<definedNames>\s*<\/definedNames>|<definedNames\s*\/>/, '')
 }
 
 function setSheetScopedName(
@@ -459,22 +471,35 @@ function setSheetScopedName(
     `<definedName[^>]*name="${escapedName}"[^>]*localSheetId="${sheetIndex}"[^>]*>[\\s\\S]*?</definedName>` +
       `|<definedName[^>]*localSheetId="${sheetIndex}"[^>]*name="${escapedName}"[^>]*>[\\s\\S]*?</definedName>`,
   )
-  let xml = workbookXml.replace(namePattern, '')
+  const xml = workbookXml.replace(namePattern, '')
   if (reference === null) return xml
   const element =
     `<definedName name="${name}" localSheetId="${sheetIndex}">` +
     `${escapeXml(reference)}</definedName>`
+  // Google Sheets exports an empty self-closing `<definedNames/>`.
+  const empty = /<definedNames\b[^>]*\/>/.exec(xml)
+  if (empty) {
+    return (
+      xml.slice(0, empty.index) +
+      `<definedNames>${element}</definedNames>` +
+      xml.slice(empty.index + empty[0].length)
+    )
+  }
   const section = /<definedNames\b[^>]*>/.exec(xml)
   if (section) {
     const at = section.index + section[0].length
-    xml = xml.slice(0, at) + element + xml.slice(at)
-  } else {
-    const sheetsEnd = /<\/sheets>/.exec(xml)
-    if (!sheetsEnd) throw new PageSetupError('workbook.xml has no sheets section.')
-    const at = sheetsEnd.index + sheetsEnd[0].length
-    xml = `${xml.slice(0, at)}<definedNames>${element}</definedNames>${xml.slice(at)}`
+    return xml.slice(0, at) + element + xml.slice(at)
   }
-  return xml
+  // Schema order: definedNames follows sheets (and functionGroups/externalReferences).
+  const anchor =
+    /<externalReferences\b[^>]*>[\s\S]*?<\/externalReferences>|<externalReferences\b[^>]*\/>/.exec(
+      xml,
+    ) ??
+    /<functionGroups\b[^>]*>[\s\S]*?<\/functionGroups>|<functionGroups\b[^>]*\/>/.exec(xml) ??
+    /<\/sheets>|<sheets\b[^>]*\/>/.exec(xml)
+  if (!anchor) throw new PageSetupError('workbook.xml has no sheets section.')
+  const at = anchor.index + anchor[0].length
+  return `${xml.slice(0, at)}<definedNames>${element}</definedNames>${xml.slice(at)}`
 }
 
 /// "1:3" → "$1:$3" (title rows repeated at the top of each page).

@@ -12,6 +12,8 @@ export const ru = {
   ribbonTabLayout: 'Макет',
   ribbonTabReferences: 'Ссылки',
   ribbonTabReview: 'Рецензирование',
+  ribbonCollapse: 'Свернуть ленту',
+  ribbonPin: 'Закрепить ленту',
   ribbonTabView: 'Вид',
   ribbonTabTableDesign: 'Конструктор таблиц',
   ribbonTabTableLayout: 'Макет таблицы',
@@ -150,6 +152,10 @@ export const ru = {
   ribbonOuterBordersTip: 'Границы только по внешнему краю выделения',
   ribbonInnerBorders: 'Внутренние границы',
   ribbonInnerBordersTip: 'Границы только внутри выделения',
+  ribbonTableInsideHBorders: 'Inside Horizontal',
+  ribbonTableInsideHBordersTip: 'Inside horizontal borders for the whole table',
+  ribbonTableInsideVBorders: 'Inside Vertical',
+  ribbonTableInsideVBordersTip: 'Inside vertical borders for the whole table',
   ribbonClearBordersTip: 'Убрать границы выделенных ячеек',
   ribbonBorderColor: 'Цвет границы',
   ribbonBorderWidth: 'Толщина границы',
@@ -293,6 +299,8 @@ export const ru = {
   ribbonChartAddCategory: '+ Категория',
   ribbonChartAddSeries: '+ Ряд',
   ribbonLinkInsertTitle: 'Вставка гиперссылки',
+  ribbonLinkEditTitle: 'Изменить гиперссылку',
+  ribbonLinkRemove: 'Удалить ссылку',
   ribbonLinkText: 'Отображаемый текст',
   ribbonLinkTextPh: 'Текст ссылки (оставьте пустым, чтобы показать адрес)',
   ribbonLinkAddress: 'Адрес',
@@ -572,6 +580,9 @@ export const ru = {
   ribbonEditorPrompt:
     'Вычитайте весь документ: исправьте опечатки, пунктуацию и грамматические ошибки, сохранив исходный смысл и структуру абзацев.',
   ribbonGroupProofing: 'Правописание',
+  ribbonSpellcheckBtn: 'Правописание',
+  ribbonSpellcheckTip:
+    'Проверять орфографию при вводе — подчёркивает красным слова с возможными ошибками',
   ribbonTranslate: 'Перевод',
   ribbonTranslateTip: 'ИИ переведёт документ',
   ribbonTranslatePrompt:

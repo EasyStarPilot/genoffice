@@ -1338,6 +1338,10 @@ export function replaceOccurrences(
   replace: string,
   matchCase: boolean,
 ): string {
+  // An empty needle matches every gap (split('') / /(?:)/gi): callers validate
+  // non-empty via the find_replace schema, but a direct call must stay a no-op
+  // rather than corrupting the cell — mirrors lazy-find's empty-needle guard.
+  if (!find) return text
   if (matchCase) return text.split(find).join(replace)
   const escaped = find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   // Callback form: a literal `$` in the replacement must stay literal.
@@ -1505,6 +1509,9 @@ export function expandToPrimitiveOps(
         throw new Error('find_replace needs the current cell contents to plan against.')
       const matchCase = operation.matchCase ?? false
       const needle = matchCase ? operation.find : operation.find.toLowerCase()
+      // Spaces trimmed, line breaks kept — same convention as the find
+      // dialog (lazy-find.ts) so whole-cell matches agree everywhere.
+      const trimSpaces = (s: string): string => s.replace(/^ +/g, '').replace(/ +$/g, '')
       for (let row = bounds.startRow; row <= bounds.endRow; row += 1) {
         for (let column = bounds.startColumn; column <= bounds.endColumn; column += 1) {
           const address = formatAddress(row, column)
@@ -1517,7 +1524,10 @@ export function expandToPrimitiveOps(
           const haystack = matchCase ? content : content.toLowerCase()
           let next: string | null = null
           if (operation.wholeCell) {
-            if (haystack === needle) next = operation.replace
+            // Mirror the find dialog (lazy-find.ts matchesTheWholeCell):
+            // surrounding spaces are ignored so preview and AI apply agree
+            // on cells like "  total  ".
+            if (trimSpaces(haystack) === needle.trim()) next = operation.replace
           } else if (haystack.includes(needle)) {
             next = replaceOccurrences(content, operation.find, operation.replace, matchCase)
           }

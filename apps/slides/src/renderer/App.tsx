@@ -84,7 +84,7 @@ import { AnimationPane } from './components/AnimationPane'
 import { AnimPreviewOverlay } from './components/AnimatedSlide'
 import { EquationDialog, HeaderFooterDialog, LinkDialog } from './components/InsertDialogs'
 import { CutoutDialog } from './components/CutoutDialog'
-import type { WordArtPreset } from '@genoffice/ui'
+import { useAutoSavePref, type AiScopeQuoteData, type WordArtPreset } from '@genoffice/ui'
 import type { ChartPresetDef, IconDef, SmartArtDef } from './insert-presets'
 import { GensparkMark, IconAiBeautify, IconAiFactCheck, IconAiImage } from './components/icons'
 import { ToastHost } from './components/toast'
@@ -404,11 +404,8 @@ export function App() {
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
   }
-  const [autoSave, setAutoSave] = useState(
-    () => localStorage.getItem('ai-slides-auto-save') === '1',
-  )
+  const [autoSave, setAutoSave] = useAutoSavePref('ai-slides-auto-save', window.slidesApi)
   useEffect(() => {
-    localStorage.setItem('ai-slides-auto-save', autoSave ? '1' : '0')
     window.slidesApi.setAutoSavePref?.(autoSave)
   }, [autoSave])
   const [showAi, setShowAi] = useState(() => localStorage.getItem('ai-slides-show-ai') !== '0')
@@ -842,7 +839,7 @@ export function App() {
   const askOpenRef = useRef(false)
 
   const save = useCallback(
-    (quiet = false): Promise<boolean> => fileActions.save(ctxRef.current, quiet),
+    (quiet = false): Promise<boolean> => fileActions.save(() => ctxRef.current, quiet),
     [],
   )
 
@@ -913,7 +910,7 @@ export function App() {
     }
   }, [autoSave, path, editing, editingCell, save])
 
-  const saveAs = useCallback(() => fileActions.saveAs(ctxRef.current), [])
+  const saveAs = useCallback(() => fileActions.saveAs(() => ctxRef.current), [])
   const exportImages = useCallback(() => fileActions.exportImages(ctxRef.current), [])
   const exportPdf = useCallback(() => fileActions.exportPdf(ctxRef.current), [])
 
@@ -1149,6 +1146,7 @@ export function App() {
       displayText?: string,
       attachments?: AttachmentMeta[],
       slideShot?: boolean,
+      scope?: AiScopeQuoteData,
     ) => {
       setShowAi(() => {
         localStorage.setItem('ai-slides-show-ai', '1')
@@ -1161,6 +1159,7 @@ export function App() {
         displayText,
         ...(attachments && attachments.length > 0 ? { attachments } : {}),
         ...(slideShot ? { slideShot } : {}),
+        ...(scope ? { scope } : {}),
       })
     },
     [],
@@ -1190,6 +1189,17 @@ export function App() {
       return node ? [{ id: anchorId(node), sourceId: node.sourceId, desc: describeNode(node) }] : []
     })
   }, [askState, findNodeCtx])
+  /** what a Send-now bubble quotes: the page, the element count and their leading text */
+  const askScopeQuote = (): AiScopeQuoteData => {
+    const text = askTargets
+      .map((target) => target.desc.text?.trim() ?? '')
+      .filter(Boolean)
+      .join(' / ')
+    return {
+      label: `${t('aiScopeSlide', { n: current + 1 })} · ${t('aiScopeSelection', { count: askTargets.length })}`,
+      ...(text ? { text } : {}),
+    }
+  }
 
   /** Viewport rect of a set of element ids; re-measured while the canvas scrolls or zooms */
   const selectionRect = useCallback(
@@ -1382,6 +1392,11 @@ export function App() {
     setSelectedIds([])
     setEditing(null)
     setDirty(true)
+    // The deck is the new truth: drop an in-progress notes draft (same as undo) so a stale
+    // draft can't overwrite what the AI batch wrote via setNotes on the next flush, then
+    // re-fetch notes/comments, which aren't part of RenderSlide.
+    notesDraftRef.current = null
+    setAnnotationsNonce((n) => n + 1)
   }, [])
 
   const addSlide = useCallback(() => slideActions.addSlide(ctxRef.current), [])
@@ -1738,6 +1753,7 @@ export function App() {
   )
   const cancelCrop = useCallback(() => pictureEditActions.cancelCrop(ctxRef.current), [])
   const startCutout = useCallback(() => pictureEditActions.startCutout(ctxRef.current), [])
+  const replacePicture = useCallback(() => pictureEditActions.replacePicture(ctxRef.current), [])
   const applyCutout = useCallback(
     (pngDataUrl: string) => pictureEditActions.applyCutout(ctxRef.current, pngDataUrl),
     [],
@@ -1751,6 +1767,10 @@ export function App() {
   )
   const flipSelected = useCallback(
     (axis: 'h' | 'v') => arrangeActions.flipSelected(ctxRef.current, axis),
+    [],
+  )
+  const rotateSelected = useCallback(
+    (deltaDeg: number) => arrangeActions.rotateSelected(ctxRef.current, deltaDeg),
     [],
   )
 
@@ -2817,7 +2837,6 @@ export function App() {
         aiOpen={showAi}
         onToggleAi={toggleAi}
         onAiPreset={(text, opts) => pushAiPreset(text, true, undefined, undefined, opts?.slideShot)}
-        onAskSelection={openAskPopover}
         onInsert={(kind) => void insertElement(kind)}
         onPickShape={pickShape}
         onInsertImage={() => void insertImage()}
@@ -3102,6 +3121,8 @@ export function App() {
         onPictureCrop={startCrop}
         cropActive={cropTarget != null}
         onPictureCutout={startCutout}
+        onPictureReplace={() => void replacePicture()}
+        onPictureRotate={(delta) => void rotateSelected(delta)}
         onPictureOpacity={(opacity) => {
           if (!selectedNode || selectedNode.type !== 'picture') return
           void window.slidesApi
@@ -3143,17 +3164,7 @@ export function App() {
                   setPath(p)
                   setDirty(false)
                 }}
-                onSetSpeakerNotes={(i, text) =>
-                  flushNotes()
-                    .then(() => window.slidesApi.setNotes({ slideIndex: i, text }))
-                    .then((ok) => {
-                      if (ok) {
-                        setDirty(true)
-                        setAnnotationsNonce((n) => n + 1)
-                      }
-                      return ok
-                    })
-                }
+                onBeforeRun={flushNotes}
                 currentFilePath={path}
                 editQueue={editQueue}
                 onQueueEditInstruction={(key, instruction) =>
@@ -4147,6 +4158,9 @@ export function App() {
                     buildSelectionInstruction(current, askTargets, instruction),
                     true,
                     instruction,
+                    undefined,
+                    undefined,
+                    askScopeQuote(),
                   )
                 }
           }

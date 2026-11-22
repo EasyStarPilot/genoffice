@@ -18,6 +18,8 @@ export interface ColorRun {
 export interface CharStyle {
   /** CSS hex like '#d32f2f' */
   color?: string
+  /** CSS hex background like '#ffff00' (text highlight) */
+  background?: string
   /** EDIT_FONTS id */
   font?: string
   /** Font size in PDF pt */
@@ -27,26 +29,29 @@ export interface CharStyle {
   italic?: boolean
 }
 
-/** Canonical key: '' = base; else 'color|font|size|bold|italic' with '' fields
+/** Canonical key: '' = base; else 'color|background|font|size|bold|italic' with '' fields
     inheriting and bold/italic '1'/'0' explicit on/off. A bare-color style encodes
     with trailing '|'s so distinct styles never collide. */
 export function encodeStyle(s: CharStyle): string {
   const tri = (v: boolean | undefined) => (v === undefined ? '' : v ? '1' : '0')
   const key = [
     s.color ?? '',
+    s.background ?? '',
     s.font ?? '',
     s.size !== undefined ? String(s.size) : '',
     tri(s.bold),
     tri(s.italic),
   ].join('|')
-  return key === '||||' ? '' : key
+  return key === '|||||' ? '' : key
 }
 
 export function decodeStyle(key: string): CharStyle {
   if (!key) return {}
-  const [color = '', font = '', size = '', bold = '', italic = ''] = key.split('|')
+  const [color = '', background = '', font = '', size = '', bold = '', italic = ''] =
+    key.split('|')
   const out: CharStyle = {}
   if (color) out.color = color
+  if (background) out.background = background
   if (font) out.font = font
   if (size) out.size = Number(size)
   if (bold) out.bold = bold === '1'
@@ -61,7 +66,7 @@ export function patchStyle(
   patch: { [K in keyof CharStyle]?: CharStyle[K] | null },
 ): string {
   const s = decodeStyle(key)
-  for (const k of ['color', 'font', 'size', 'bold', 'italic'] as const) {
+  for (const k of ['color', 'background', 'font', 'size', 'bold', 'italic'] as const) {
     const v = patch[k]
     if (v === undefined) continue
     if (v === null) delete s[k]

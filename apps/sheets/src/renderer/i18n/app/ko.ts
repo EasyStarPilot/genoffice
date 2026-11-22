@@ -285,6 +285,7 @@ export const ko = {
   appAiDone: 'AI가 완료되었습니다',
   appAiTurnLimit:
     '(요청당 도구 호출 한도에 도달하여, 지금까지 읽은 정보를 기반으로 한 답변입니다. 불완전할 수 있습니다.)',
+  appAiTruncatedNote: '(응답이 길이 제한으로 잘려 내용이 불완전할 수 있습니다.)',
   appAiStopped: '(중지됨)',
   appAiNoSummary: 'AI가 완료되었지만 요약은 생성되지 않았습니다.',
   appAiNoAction:
@@ -304,7 +305,16 @@ export const ko = {
     '이 아이콘 조합은 xlsx로 저장할 수 없습니다. 다른 아이콘 집합을 선택하세요.',
   appNeedFullLoadSort:
     '정렬, 필터, 범위 이동, 텍스트 나누기에는 전체 로드 모드가 필요합니다. 이 통합 문서는 너무 커서 스트리밍 방식으로만 로드되었습니다.',
+  appFullLoadFilterTitle: '필터를 사용하려면 전체 로드가 필요합니다',
+  appFullLoadFilterBody:
+    '이 통합 문서는 커서 현재 일부만 스트리밍으로 로드되었습니다. 필터(값 개수 포함)가 정확하려면 전체 데이터가 필요합니다. 지금 전체를 로드할까요?',
+  appFullLoadStart: '모두 로드',
+  appFullLoadRunning: '통합 문서 전체를 로드하는 중입니다. 완료되면 필터를 사용할 수 있습니다…',
+  appFullLoadTooLarge:
+    '이 통합 문서는 너무 커서 메모리에 전부 로드할 수 없습니다. 이 파일에서는 필터를 사용할 수 없습니다.',
+  appDialogCancel: '취소',
   appPivotSheetNoMove: '이 시트에는 피벗 테이블이 있어 아직 범위 이동을 지원하지 않습니다.',
+  appMergeOverTable: '선택 영역이 Excel 표와 겹칩니다 — 표 안의 셀 병합은 아직 지원되지 않습니다.',
   appTableFilterNoEdit:
     '이 시트의 필터는 Excel 표에 속해 있어 편집 후에도 당분간 저장할 수 없습니다.',
   appAutofillStreaming: '아직 스트리밍 로드 중인 영역으로는 자동 채우기를 할 수 없습니다.',
@@ -559,6 +569,8 @@ export const ko = {
     '정의된 이름 변경은 행/열 또는 시트 구조 변경과 함께 저장할 수 없습니다 — 두 번에 나누어 저장하십시오.',
   appSaveErrChangedOnDisk:
     '다른 프로그램이 디스크의 파일을 변경했습니다 — 저장을 중단했으니 파일을 다시 연 후 시도하십시오.',
+  appSaveErrTargetLocked:
+    '파일을 교체할 수 없습니다. 다른 프로그램(Excel에서 열림, 동기화/백신 검사 중 등)이 잠근 것 같습니다. 닫은 후 다시 저장하세요.',
   appSaveErrStylesheetLimited:
     '이 통합 문서의 스타일시트에 기본 구조가 없어 스타일 변경을 저장할 수 없습니다.',
   appSaveErrPackageGuard:
@@ -650,6 +662,8 @@ export const ko = {
   appTabFormulas: '수식',
   appTabData: '데이터',
   appTabReview: '검토',
+  appRibbonCollapse: '리본 축소',
+  appRibbonPin: '리본 고정',
   appTabView: '보기',
   appTabAi: 'AI',
   appTabChartDesign: '차트 디자인',

@@ -12,6 +12,8 @@ export const es = {
   ribbonTabLayout: 'Disposición',
   ribbonTabReferences: 'Referencias',
   ribbonTabReview: 'Revisar',
+  ribbonCollapse: 'Contraer la cinta de opciones',
+  ribbonPin: 'Anclar la cinta de opciones',
   ribbonTabView: 'Vista',
   ribbonTabTableDesign: 'Diseño de tabla',
   ribbonTabTableLayout: 'Disposición de tabla',
@@ -151,6 +153,10 @@ export const es = {
   ribbonOuterBordersTip: 'Bordes solo en el contorno de la selección',
   ribbonInnerBorders: 'Bordes internos',
   ribbonInnerBordersTip: 'Bordes solo en el interior de la selección',
+  ribbonTableInsideHBorders: 'Inside Horizontal',
+  ribbonTableInsideHBordersTip: 'Inside horizontal borders for the whole table',
+  ribbonTableInsideVBorders: 'Inside Vertical',
+  ribbonTableInsideVBordersTip: 'Inside vertical borders for the whole table',
   ribbonClearBordersTip: 'Borrar los bordes de las celdas seleccionadas',
   ribbonBorderColor: 'Color del borde',
   ribbonBorderWidth: 'Grosor del borde',
@@ -295,6 +301,8 @@ export const es = {
   ribbonChartAddCategory: '+ Categoría',
   ribbonChartAddSeries: '+ Serie',
   ribbonLinkInsertTitle: 'Insertar hipervínculo',
+  ribbonLinkEditTitle: 'Editar hipervínculo',
+  ribbonLinkRemove: 'Quitar vínculo',
   ribbonLinkText: 'Texto para mostrar',
   ribbonLinkTextPh: 'Texto del vínculo (déjelo en blanco para mostrar la dirección)',
   ribbonLinkAddress: 'Dirección',
@@ -576,6 +584,9 @@ export const es = {
   ribbonEditorPrompt:
     'Revisa todo el documento: corrige erratas, puntuación y errores gramaticales manteniendo el significado original y la estructura de los párrafos.',
   ribbonGroupProofing: 'Revisión',
+  ribbonSpellcheckBtn: 'Ortografía',
+  ribbonSpellcheckTip:
+    'Revisar la ortografía mientras escribe — subraya en rojo las palabras posiblemente mal escritas',
   ribbonTranslate: 'Traducir',
   ribbonTranslateTip: 'La IA traduce el documento',
   ribbonTranslatePrompt:

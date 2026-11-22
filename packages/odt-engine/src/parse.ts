@@ -249,6 +249,12 @@ function paragraphAlign(style: XmlNode | undefined): ParaAlign | undefined {
   return align ? ALIGN_MAP[align] : undefined
 }
 
+/** ODF page-break property: fo:break-before="page" on the paragraph style */
+function pageBreakBeforeOf(style: XmlNode | undefined): boolean {
+  const pp = asXmlNode(style?.['style:paragraph-properties'])
+  return pp ? pp['@_fo:break-before'] === 'page' : false
+}
+
 function runPropsFromStyle(style: XmlNode | undefined): Partial<Run> {
   if (!style) return {}
   const tp = asXmlNode(style['style:text-properties'])
@@ -428,6 +434,10 @@ function walkBody(
           collectRuns([h], styles, media, {}, runs)
           const level = Number(h['@_text:outline-level'] ?? 1) || 1
           const align = paragraphAlign(styleOf(styles, h['@_text:style-name']))
+          const pb = pageBreakBeforeOf(styleOf(styles, h['@_text:style-name']))
+          const fmt: ParaFormat = {}
+          if (align) fmt.align = align
+          if (pb) fmt.pageBreakBefore = true
           out.push({
             id: nextId(),
             type: 'heading',
@@ -435,7 +445,7 @@ function walkBody(
             originalXml: null,
             level: Math.min(9, Math.max(1, level)),
             runs,
-            ...(align ? { format: { align } } : {}),
+            ...{ format: fmt },
           })
         }
       } else if (key === 'text:p') {
@@ -461,27 +471,35 @@ function walkBody(
           collectRuns([p], styles, media, {}, runs)
           const align = paragraphAlign(styleOf(styles, p['@_text:style-name']))
           if (list) {
-            out.push({
-              id: nextId(),
-              type: 'listItem',
-              docxIndex: null,
-              originalXml: null,
-              list: {
-                kind: list.kind,
-                numId: list.kind === 'ordered' ? ODT_ORDERED_NUM_ID : ODT_BULLET_NUM_ID,
-                ilvl: Math.min(8, list.ilvl),
-              },
-              runs,
-              ...(align ? { format: { align } } : {}),
-            })
+          const pb = pageBreakBeforeOf(styleOf(styles, p['@_text:style-name']))
+          const fmt: ParaFormat = {}
+          if (align) fmt.align = align
+          if (pb) fmt.pageBreakBefore = true
+          out.push({
+            id: nextId(),
+            type: 'listItem',
+            docxIndex: null,
+            originalXml: null,
+            list: {
+              kind: list.kind,
+              numId: list.kind === 'ordered' ? ODT_ORDERED_NUM_ID : ODT_BULLET_NUM_ID,
+              ilvl: Math.min(8, list.ilvl),
+            },
+            runs,
+            ...{ format: fmt },
+          })
           } else {
+            const pb = pageBreakBeforeOf(styleOf(styles, p['@_text:style-name']))
+            const fmt: ParaFormat = {}
+            if (align) fmt.align = align
+            if (pb) fmt.pageBreakBefore = true
             out.push({
               id: nextId(),
               type: 'paragraph',
               docxIndex: null,
               originalXml: null,
               runs,
-              ...(align ? { format: { align } } : {}),
+              ...{ format: fmt },
             })
           }
         }

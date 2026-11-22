@@ -284,6 +284,7 @@ export const id = {
   appAiDone: 'AI selesai',
   appAiTurnLimit:
     '(Batas putaran panggilan alat untuk permintaan ini tercapai; jawaban di atas berdasarkan yang sudah dibaca dan mungkin tidak lengkap.)',
+  appAiTruncatedNote: '(Balasan terpotong karena batas panjang dan mungkin tidak lengkap.)',
   appAiStopped: '(dihentikan)',
   appAiNoSummary: 'AI selesai tanpa menghasilkan ringkasan.',
   appAiNoAction:
@@ -301,7 +302,17 @@ export const id = {
   appIconSetUnsupported: 'Kombinasi ikon ini tidak dapat disimpan ke xlsx — pilih set ikon lain.',
   appNeedFullLoadSort:
     'Mengurutkan, memfilter, memindahkan rentang, dan memisahkan teks ke kolom memerlukan mode muat penuh — buku kerja ini terlalu besar dan dimuat sebagian secara streaming.',
+  appFullLoadFilterTitle: 'Filter memerlukan pemuatan penuh',
+  appFullLoadFilterBody:
+    'Buku kerja ini besar dan baru dimuat sebagian secara streaming. Filter (termasuk hitungan nilai) memerlukan data lengkap agar benar. Muat seluruh buku kerja sekarang?',
+  appFullLoadStart: 'Muat semua',
+  appFullLoadRunning: 'Memuat seluruh buku kerja — filter tersedia setelah selesai…',
+  appFullLoadTooLarge:
+    'Buku kerja ini terlalu besar untuk dimuat sepenuhnya ke memori; filter tidak tersedia untuk file ini.',
+  appDialogCancel: 'Batal',
   appPivotSheetNoMove: 'Lembar ini berisi PivotTable — memindahkan rentang belum didukung.',
+  appMergeOverTable:
+    'Pilihan tumpang tindih dengan tabel Excel — menggabungkan sel di dalam tabel belum didukung.',
   appTableFilterNoEdit: 'Filter lembar ini milik tabel Excel — pengeditannya belum dapat disimpan.',
   appAutofillStreaming: 'IsiOtomatis ke area yang masih dimuat secara streaming belum diizinkan.',
   appDvNeedsIndexed:
@@ -550,6 +561,8 @@ export const id = {
     'Perubahan nama yang ditentukan tidak dapat disimpan bersama perubahan baris/kolom atau struktur sheet — simpan dalam dua tahap.',
   appSaveErrChangedOnDisk:
     'File diubah di disk oleh program lain — penyimpanan dibatalkan; buka kembali file lalu coba lagi.',
+  appSaveErrTargetLocked:
+    'File tidak dapat diganti — tampaknya terkunci oleh program lain (terbuka di Excel, atau sedang dipindai/disinkronkan). Tutup di sana lalu simpan lagi.',
   appSaveErrStylesheetLimited:
     'Stylesheet buku kerja ini tidak memiliki struktur dasar, jadi perubahan gaya tidak dapat disimpan.',
   appSaveErrPackageGuard:
@@ -639,6 +652,8 @@ export const id = {
   appTabFormulas: 'Rumus',
   appTabData: 'Data',
   appTabReview: 'Tinjau',
+  appRibbonCollapse: 'Ciutkan Pita',
+  appRibbonPin: 'Sematkan Pita',
   appTabView: 'Tampilan',
   appTabAi: 'AI',
   appTabChartDesign: 'Desain Bagan',

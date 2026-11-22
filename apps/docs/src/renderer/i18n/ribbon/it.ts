@@ -12,6 +12,8 @@ export const it = {
   ribbonTabLayout: 'Layout',
   ribbonTabReferences: 'Riferimenti',
   ribbonTabReview: 'Revisione',
+  ribbonCollapse: 'Riduci a icona la barra multifunzione',
+  ribbonPin: 'Aggiungi la barra multifunzione',
   ribbonTabView: 'Visualizza',
   ribbonTabTableDesign: 'Progettazione tabella',
   ribbonTabTableLayout: 'Layout tabella',
@@ -151,6 +153,10 @@ export const it = {
   ribbonOuterBordersTip: 'Bordi solo sul contorno esterno della selezione',
   ribbonInnerBorders: 'Bordi interni',
   ribbonInnerBordersTip: "Bordi solo all'interno della selezione",
+  ribbonTableInsideHBorders: 'Inside Horizontal',
+  ribbonTableInsideHBordersTip: 'Inside horizontal borders for the whole table',
+  ribbonTableInsideVBorders: 'Inside Vertical',
+  ribbonTableInsideVBordersTip: 'Inside vertical borders for the whole table',
   ribbonClearBordersTip: 'Rimuovi i bordi dalle celle selezionate',
   ribbonBorderColor: 'Colore bordo',
   ribbonBorderWidth: 'Spessore bordo',
@@ -294,6 +300,8 @@ export const it = {
   ribbonChartAddCategory: '+ Categoria',
   ribbonChartAddSeries: '+ Serie',
   ribbonLinkInsertTitle: 'Inserisci collegamento ipertestuale',
+  ribbonLinkEditTitle: 'Modifica collegamento ipertestuale',
+  ribbonLinkRemove: 'Rimuovi collegamento',
   ribbonLinkText: 'Testo da visualizzare',
   ribbonLinkTextPh: "Testo del collegamento (lascia vuoto per mostrare l'indirizzo)",
   ribbonLinkAddress: 'Indirizzo',
@@ -575,6 +583,9 @@ export const it = {
   ribbonEditorPrompt:
     "Correggi l'intero documento: sistema refusi, punteggiatura ed errori grammaticali mantenendo il significato originale e la struttura dei paragrafi.",
   ribbonGroupProofing: 'Strumenti di correzione',
+  ribbonSpellcheckBtn: 'Ortografia',
+  ribbonSpellcheckTip:
+    "Controlla l'ortografia durante la digitazione — sottolinea in rosso le parole forse errate",
   ribbonTranslate: 'Traduci',
   ribbonTranslateTip: "L'IA traduce il documento",
   ribbonTranslatePrompt:

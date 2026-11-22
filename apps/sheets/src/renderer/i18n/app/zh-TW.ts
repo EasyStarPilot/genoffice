@@ -250,6 +250,7 @@ export const zhTW = {
   appAiThinking: 'AI 思考中…',
   appAiDone: 'AI 已完成',
   appAiTurnLimit: '（已達單次要求的工具呼叫輪數上限，以上是根據已讀取資訊的回答，可能不完整。）',
+  appAiTruncatedNote: '（回覆因長度限制被截斷,內容可能不完整。）',
   appAiStopped: '（已停止）',
   appAiNoSummary: 'AI 已完成，沒有產生摘要。',
   appAiNoAction: 'AI 沒有執行任何操作，也沒有給出回覆。請重試或換個說法。',
@@ -265,7 +266,15 @@ export const zhTW = {
   appIconSetUnsupported: '該圖示組合無法儲存為 xlsx 檔案，請改用其他圖示集。',
   appNeedFullLoadSort:
     '排序、篩選、移動範圍和資料剖析需要完整載入模式——這個活頁簿太大，只做了串流載入。',
+  appFullLoadFilterTitle: '篩選需要完整載入',
+  appFullLoadFilterBody:
+    '此活頁簿較大，目前以串流方式僅載入了部分資料。篩選（含按值統計）需要完整資料才能給出正確結果。要現在完整載入整個活頁簿嗎？',
+  appFullLoadStart: '完整載入',
+  appFullLoadRunning: '正在完整載入活頁簿，完成後即可使用篩選……',
+  appFullLoadTooLarge: '此活頁簿過大，無法完整載入記憶體，篩選在此檔案上暫不可用。',
+  appDialogCancel: '取消',
   appPivotSheetNoMove: '該工作表含樞紐分析表——暫不支援移動範圍。',
+  appMergeOverTable: '所選範圍位於 Excel 表格內——暫不支援合併表格中的儲存格。',
   appTableFilterNoEdit: '該工作表的篩選屬於 Excel 表格——編輯後暫時無法儲存。',
   appAutofillStreaming: '暫不允許向仍在串流載入的範圍自動填入。',
   appDvNeedsIndexed: '編輯資料驗證需要該工作表先完成索引——請稍後再試。',
@@ -481,6 +490,8 @@ export const zhTW = {
   appSaveErrNamesWithStructural:
     '已定義名稱的變更不能和列/欄或工作表結構變更一起儲存——請分兩次儲存。',
   appSaveErrChangedOnDisk: '檔案在磁碟上被其他程式變更了——儲存已中止，請重新開啟後再試。',
+  appSaveErrTargetLocked:
+    '檔案無法取代——看起來被其他程式佔用（如在 Excel 中開啟，或正被同步/防毒掃描）。請關閉佔用後重新儲存。',
   appSaveErrStylesheetLimited: '這個活頁簿的樣式表缺少基礎結構，樣式變更無法儲存。',
   appSaveErrPackageGuard: '儲存會改變活頁簿的封裝結構——已中止以保護檔案。',
   appSaveErrChartUnsupported: '這個圖表類型不支援該編輯，儲存已中止——請復原該圖表變更。',
@@ -558,6 +569,8 @@ export const zhTW = {
   appTabFormulas: '公式',
   appTabData: '資料',
   appTabReview: '校閱',
+  appRibbonCollapse: '摺疊功能區',
+  appRibbonPin: '固定功能區',
   appTabView: '檢視',
   appTabAi: 'AI',
   appTabChartDesign: '圖表設計',

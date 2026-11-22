@@ -1,25 +1,8 @@
-//! Workbook-level parts: archive validation, sheet declarations and
-//! relationships, `<dimension>` / sheet-view scans, the shared-string table
-//! and workbook defined names.
+//! Workbook-level parts: sheet declarations and relationships,
+//! `<dimension>` / sheet-view scans, the shared-string table and workbook
+//! defined names.
 
 use super::*;
-
-pub(crate) fn validate_archive(archive: &mut ZipArchive<File>) -> Result<(), SidecarError> {
-    if archive.len() > MAX_ENTRY_COUNT {
-        return Err(SidecarError::Workbook(
-            "Workbook contains too many ZIP entries.".into(),
-        ));
-    }
-    for index in 0..archive.len() {
-        let entry = archive.by_index(index)?;
-        if entry.enclosed_name().is_none() {
-            return Err(SidecarError::Workbook(
-                "Workbook contains an unsafe ZIP path.".into(),
-            ));
-        }
-    }
-    Ok(())
-}
 
 pub(crate) fn read_sheet_declarations(
     archive: &mut ZipArchive<File>,
@@ -340,9 +323,14 @@ pub(crate) fn read_sheet_dimensions(
                     // producers emitting A1 or A1:G1). Small dimensions can be
                     // stale too (tdf113271 declares A1:F5 over 462 rows) and
                     // are cheap to verify — trust only refs large enough that
-                    // scanning them would cost real time.
+                    // scanning them would cost real time. A ref reaching the
+                    // sheet's last column or row (A1:XFD32, Yozo) declares the
+                    // whole sheet, not the used range.
                     && dimensions.is_some_and(|(rows, columns)| {
-                        rows > 1 && columns > 1 && rows * columns >= DIMENSION_TRUST_CELLS
+                        rows > 1
+                            && columns > 1
+                            && !spans_full_axis(rows, columns)
+                            && rows * columns >= DIMENSION_TRUST_CELLS
                     }) =>
             {
                 let (row_count, column_count) = dimensions.unwrap_or((1, 1));
@@ -389,8 +377,8 @@ pub(crate) fn read_sheet_dimensions(
             Event::Eof => {
                 let (dim_rows, dim_columns) = dimensions.unwrap_or((0, 0));
                 let (row_count, column_count) = (
-                    dim_rows.max(maximum_row + 1),
-                    dim_columns.max(maximum_column + 1),
+                    declared_extent(dim_rows, SHEET_MAX_ROWS).max(maximum_row + 1),
+                    declared_extent(dim_columns, SHEET_MAX_COLUMNS).max(maximum_column + 1),
                 );
                 return Ok(SheetDimensions {
                     row_count,
@@ -416,6 +404,22 @@ pub(crate) fn read_sheet_dimensions(
 }
 
 pub(crate) const DIMENSION_TRUST_CELLS: usize = 10_000;
+pub(crate) const SHEET_MAX_ROWS: usize = 1_048_576;
+pub(crate) const SHEET_MAX_COLUMNS: usize = 16_384;
+
+/// A declared extent reaching the sheet's last row/column means "whole
+/// sheet", not a used range; only the measured cells count then.
+fn declared_extent(declared: usize, sheet_max: usize) -> usize {
+    if declared >= sheet_max {
+        0
+    } else {
+        declared
+    }
+}
+
+fn spans_full_axis(rows: usize, columns: usize) -> bool {
+    rows >= SHEET_MAX_ROWS || columns >= SHEET_MAX_COLUMNS
+}
 
 pub(crate) fn dimensions_from_reference(reference: &str) -> Result<(usize, usize), SidecarError> {
     let last = reference
@@ -500,10 +504,10 @@ pub(crate) fn read_shared_strings(
             Event::End(element) if element.local_name().as_ref() == b"si" => {
                 let mut finished = std::mem::take(&mut runs);
                 for run in &mut finished {
-                    normalize_line_endings(&mut run.text);
+                    normalize_cell_text(&mut run.text);
                 }
                 let mut text = current.clone();
-                normalize_line_endings(&mut text);
+                normalize_cell_text(&mut text);
                 strings.push(SharedString {
                     text,
                     runs: qualify_runs(finished),

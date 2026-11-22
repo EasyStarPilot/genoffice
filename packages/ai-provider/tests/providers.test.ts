@@ -22,6 +22,8 @@ describe('defaultAiSettings', () => {
       expect(settings.providers[meta.id].model).toBe(meta.defaultModel)
     }
     expect(settings.providers.custom.baseUrl).toBe('')
+    expect(settings.providers.codex.cliPath).toBe('')
+    expect(settings.providers.codex.model).toBe('')
     expect(settings.providers.anthropic.baseUrl).toBeUndefined()
   })
 
@@ -40,6 +42,17 @@ describe('provider model catalog', () => {
     expect(deepseek.models).toContain('deepseek-v4-flash-vision-exp')
     expect(genspark.models).not.toContain('deep-seek-v4-flash')
     expect(genspark.models).not.toContain('deep-seek-v4-flash-vision-exp-openrouter')
+  })
+
+  it('keeps Responses-only models out of the OpenCode tiers (no such protocol yet)', () => {
+    for (const id of ['opencode-zen', 'opencode-go'] as const) {
+      const meta = AI_PROVIDERS.find((provider) => provider.id === id)!
+      expect(meta.models).toContain(meta.defaultModel)
+      expect(meta.needsBaseUrl).toBeUndefined()
+      for (const model of meta.models) {
+        expect(model).not.toMatch(/^(gpt-|grok-|muse-spark-)/)
+      }
+    }
   })
 })
 
@@ -135,27 +148,73 @@ describe('resolveAiSettings', () => {
     expect(resolved.providers.deepseek.model).toBe('deepseek-v4-pro')
   })
 
+  it('rewrites the models.dev-style Ollama Cloud id the direct API 404s on', () => {
+    const resolved = resolveAiSettings(
+      {
+        providers: {
+          ollamaCloud: {
+            apiKey: 'sk-cloud',
+            model: 'sh/ollama/gemma4:31b-cloud',
+            // a stale override must not survive either: the endpoint is fixed
+            baseUrl: 'https://ollama.com/api/chat/v1',
+          },
+        } as never,
+      },
+      defaultAiSettings(),
+    )
+    expect(resolved.providers.ollamaCloud.model).toBe('gemma4:31b')
+  })
+
+  it('leaves an Ollama Cloud id it does not know for the API to judge', () => {
+    const resolved = resolveAiSettings(
+      {
+        providers: { ollamaCloud: { apiKey: 'k', model: 'gemma4:99b' } } as never,
+      },
+      defaultAiSettings(),
+    )
+    expect(resolved.providers.ollamaCloud.model).toBe('gemma4:99b')
+  })
+
   it('trims whitespace pasted around stored keys and base URLs', () => {
     const resolved = resolveAiSettings(
       {
         providers: {
-          deepseek: { apiKey: ' sk-user\n', model: 'deepseek-v4-pro' },
-          custom: { apiKey: 'k', model: 'm', baseUrl: ' http://localhost:1234/v1 ' },
+          deepseek: { apiKey: ' sk-user\n', model: ' deepseek-v4-pro ' },
+          custom: { apiKey: 'k', model: ' m ', baseUrl: ' http://localhost:1234/v1 ' },
         } as never,
       },
       defaultAiSettings(),
     )
     expect(resolved.providers.deepseek.apiKey).toBe('sk-user')
+    expect(resolved.providers.deepseek.model).toBe('deepseek-v4-pro')
     expect(resolved.providers.deepseek.baseUrl).toBeUndefined()
+    expect(resolved.providers.custom.model).toBe('m')
     expect(resolved.providers.custom.baseUrl).toBe('http://localhost:1234/v1')
+  })
+
+  it('still remaps retired model ids padded with whitespace', () => {
+    const resolved = resolveAiSettings(
+      {
+        providers: {
+          deepseek: { apiKey: 'sk-user', model: ' deepseek-reasoner ' },
+        } as never,
+      },
+      defaultAiSettings(),
+    )
+    expect(resolved.providers.deepseek.model).toBe('deepseek-v4-flash')
   })
 
   it('trims the legacy single-endpoint key and base URL too', () => {
     const resolved = resolveAiSettings(
-      { apiKey: ' legacy-key ', baseUrl: ' https://legacy.example.com/v1 ' },
+      {
+        apiKey: ' legacy-key ',
+        model: ' legacy-model ',
+        baseUrl: ' https://legacy.example.com/v1 ',
+      },
       defaultAiSettings(),
     )
     expect(resolved.providers.custom.apiKey).toBe('legacy-key')
+    expect(resolved.providers.custom.model).toBe('legacy-model')
     expect(resolved.providers.custom.baseUrl).toBe('https://legacy.example.com/v1')
   })
 
@@ -224,6 +283,30 @@ describe('activeProvider', () => {
     expect(activeProvider(settings)).toBe('genspark') // custom's default model is empty
     settings.providers.custom.model = 'my-model'
     expect(activeProvider(settings)).toBe('custom')
+  })
+
+  it('allows keyless custom endpoints for local servers', () => {
+    const settings = defaultAiSettings()
+    settings.provider = 'custom'
+    settings.providers.custom.apiKey = ''
+    settings.providers.custom.baseUrl = 'http://localhost:11434/v1'
+    settings.providers.custom.model = 'llama3'
+    expect(activeProvider(settings)).toBe('custom')
+  })
+
+  it('auto-discovers Codex without an API key and preserves an optional override', () => {
+    const settings = defaultAiSettings()
+    settings.provider = 'codex'
+    expect(activeProvider(settings)).toBe('codex')
+    settings.providers.codex.cliPath = ' C:\\Tools\\codex.exe '
+    expect(activeProvider(settings)).toBe('codex')
+
+    const resolved = resolveAiSettings(
+      { providers: { codex: settings.providers.codex } as never },
+      defaultAiSettings(),
+    )
+    expect(resolved.providers.codex.cliPath).toBe('C:\\Tools\\codex.exe')
+    expect(resolved.providers.codex.apiKey).toBe('')
   })
 
   it('falls back to genspark for unknown ids from a hand-edited settings file', () => {

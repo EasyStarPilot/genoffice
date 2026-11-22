@@ -60,6 +60,23 @@ const fontCdnUrl = normalizeHttpsBaseUrl(
 // switch.
 const includeMacX64 = process.env.GENOFFICE_MAC_X64 === '1'
 
+// GENOFFICE_WIN_ARM64=1 — package the Windows ARM64 installer instead of x64.
+// CI runs it as a second electron-builder pass (own BUILD_DIR) after the
+// unchanged x64 pass, so the two never share an output dir or a sidecar path:
+// the sidecar comes from the matching cargo target dir and is checked to
+// exist at beforePack because electron-builder exits 0 on a missing
+// extraResources source (Sheets would ship dead on every ARM install).
+const winArm64 = process.env.GENOFFICE_WIN_ARM64 === '1'
+// 7-Zip packs ARM64 executables with its ARM64 branch filter, which the NSIS
+// install-time extractor (Nsis7z) cannot decode: it silently skips
+// GenOffice.exe and every dll (electron-builder#9983). BCJ it can decode.
+if (winArm64 && !process.env.ELECTRON_BUILDER_7Z_FILTER) {
+  process.env.ELECTRON_BUILDER_7Z_FILTER = 'BCJ'
+}
+const winArch = winArm64 ? 'arm64' : 'x64'
+const winSidecarTarget = winArm64 ? 'aarch64-pc-windows-msvc' : 'x86_64-pc-windows-gnu'
+const WIN_SIDECAR = `../sheets/native/xlsx-engine/target/${winSidecarTarget}/release/xlsx-sidecar.exe`
+
 // The gsk CLI tree below is copied verbatim from node_modules, and the
 // nested commander path depends on npm's current hoisting layout — fail the
 // build with a clear message if an install ever changes it, instead of
@@ -219,6 +236,7 @@ function assertModuleTreesPresent() {
     '../slides/out',
     '../pdf/out',
     '../markdown/out',
+    '../html/out',
   ]) {
     if (!existsSync(join(__dirname, rel))) {
       throw new Error(
@@ -237,7 +255,7 @@ const config = {
   // the old runtime).
   electronVersion: require('electron/package.json').version,
   directories: {
-    output: 'release',
+    output: process.env.BUILD_DIR || 'release',
   },
   files: ['out/**'],
   extraResources: [
@@ -268,6 +286,10 @@ const config = {
     {
       from: '../markdown/out',
       to: 'modules/markdown',
+    },
+    {
+      from: '../html/out',
+      to: 'modules/html',
     },
     // PDF text editing engines: the bundled main resolves these under
     // Resources/wasm when node_modules is absent (apps/pdf/src/main/wasm-path.ts)
@@ -406,6 +428,20 @@ const config = {
       icon: 'md',
       mimeType: 'text/markdown',
     },
+    {
+      ext: 'html',
+      name: 'HTML Document',
+      role: 'Editor',
+      icon: 'html',
+      mimeType: 'text/html',
+    },
+    {
+      ext: 'htm',
+      name: 'HTML Document',
+      role: 'Editor',
+      icon: 'html',
+      mimeType: 'text/html',
+    },
   ],
   npmRebuild: false,
   mac: {
@@ -437,12 +473,12 @@ const config = {
     target: [
       {
         target: 'nsis',
-        arch: ['x64'],
+        arch: [winArch],
       },
     ],
     extraResources: [
       {
-        from: '../sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe',
+        from: WIN_SIDECAR,
         to: 'native/xlsx-sidecar.exe',
       },
     ],
@@ -536,6 +572,11 @@ const config = {
     if (context.electronPlatformName === 'darwin' && includeMacX64) {
       assertUniversalSidecar()
       assertUniversalVisionOcr()
+    }
+    if (context.electronPlatformName === 'win32' && !existsSync(join(__dirname, WIN_SIDECAR))) {
+      throw new Error(
+        `win extraResources source missing: ${WIN_SIDECAR} (cargo build --target ${winSidecarTarget} first)`,
+      )
     }
   },
   dmg: {

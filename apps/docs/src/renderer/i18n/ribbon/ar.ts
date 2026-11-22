@@ -12,6 +12,8 @@ export const ar = {
   ribbonTabLayout: 'تخطيط',
   ribbonTabReferences: 'مراجع',
   ribbonTabReview: 'مراجعة',
+  ribbonCollapse: 'طي الشريط',
+  ribbonPin: 'تثبيت الشريط',
   ribbonTabView: 'عرض',
   ribbonTabTableDesign: 'تصميم الجدول',
   ribbonTabTableLayout: 'تخطيط الجدول',
@@ -147,6 +149,10 @@ export const ar = {
   ribbonOuterBordersTip: 'حدود على الحافة الخارجية للتحديد فقط',
   ribbonInnerBorders: 'الحدود الداخلية',
   ribbonInnerBordersTip: 'حدود داخل التحديد فقط',
+  ribbonTableInsideHBorders: 'Inside Horizontal',
+  ribbonTableInsideHBordersTip: 'Inside horizontal borders for the whole table',
+  ribbonTableInsideVBorders: 'Inside Vertical',
+  ribbonTableInsideVBordersTip: 'Inside vertical borders for the whole table',
   ribbonClearBordersTip: 'مسح حدود الخلايا المحددة',
   ribbonBorderColor: 'لون الحدود',
   ribbonBorderWidth: 'سُمك الحدود',
@@ -290,6 +296,8 @@ export const ar = {
   ribbonChartAddCategory: '+ فئة',
   ribbonChartAddSeries: '+ سلسلة',
   ribbonLinkInsertTitle: 'إدراج ارتباط تشعبي',
+  ribbonLinkEditTitle: 'تحرير الارتباط التشعبي',
+  ribbonLinkRemove: 'إزالة الارتباط',
   ribbonLinkText: 'النص المطلوب عرضه',
   ribbonLinkTextPh: 'نص الارتباط (اتركه فارغًا لعرض العنوان)',
   ribbonLinkAddress: 'العنوان',
@@ -567,6 +575,9 @@ export const ar = {
   ribbonEditorPrompt:
     'دقّق المستند بالكامل: صحّح الأخطاء الإملائية وعلامات الترقيم والأخطاء النحوية مع الحفاظ على المعنى الأصلي وبنية الفقرات.',
   ribbonGroupProofing: 'تدقيق',
+  ribbonSpellcheckBtn: 'تدقيق إملائي',
+  ribbonSpellcheckTip:
+    'التدقيق الإملائي أثناء الكتابة — يضع خطًا أحمر تحت الكلمات التي قد تكون خاطئة',
   ribbonTranslate: 'ترجمة',
   ribbonTranslateTip: 'يترجم الذكاء الاصطناعي المستند',
   ribbonTranslatePrompt:

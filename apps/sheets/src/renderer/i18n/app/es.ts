@@ -299,6 +299,8 @@ export const es = {
   appAiDone: 'La IA ha terminado',
   appAiTurnLimit:
     '(Se alcanzó el límite de rondas de llamadas a herramientas para esta solicitud; la respuesta anterior se basa en lo leído hasta ahora y puede estar incompleta.)',
+  appAiTruncatedNote:
+    '(La respuesta fue cortada por el límite de longitud y puede estar incompleta.)',
   appAiStopped: '(detenido)',
   appAiNoSummary: 'La IA terminó sin generar un resumen.',
   appAiNoAction:
@@ -319,7 +321,17 @@ export const es = {
     'Esta combinación de iconos no se puede guardar en xlsx — elige otro conjunto de iconos.',
   appNeedFullLoadSort:
     'Ordenar, filtrar, mover rangos y dividir texto en columnas requieren el modo de carga completa — este libro es demasiado grande y se carga parcialmente por streaming.',
+  appFullLoadFilterTitle: 'El filtrado requiere la carga completa',
+  appFullLoadFilterBody:
+    'Este libro es grande y solo se ha cargado parcialmente en streaming. El filtrado (incluido el recuento de valores) necesita los datos completos. ¿Cargar todo el libro ahora?',
+  appFullLoadStart: 'Cargar todo',
+  appFullLoadRunning: 'Cargando el libro completo: el filtrado estará disponible al terminar…',
+  appFullLoadTooLarge:
+    'Este libro es demasiado grande para cargarlo por completo en memoria; el filtrado no está disponible para este archivo.',
+  appDialogCancel: 'Cancelar',
   appPivotSheetNoMove: 'Esta hoja contiene una tabla dinámica — mover rangos aún no se admite.',
+  appMergeOverTable:
+    'La selección se superpone con una tabla de Excel — combinar celdas dentro de una tabla aún no es compatible.',
   appTableFilterNoEdit:
     'El filtro de esta hoja pertenece a una tabla de Excel — su edición aún no se puede guardar.',
   appAutofillStreaming:
@@ -587,6 +599,8 @@ export const es = {
     'Los cambios de nombres definidos no se pueden guardar junto con cambios de filas/columnas o de estructura de hojas — guarde en dos pasos.',
   appSaveErrChangedOnDisk:
     'Otro programa modificó el archivo en el disco — guardado cancelado; vuelva a abrir el archivo e inténtelo de nuevo.',
+  appSaveErrTargetLocked:
+    'No se pudo reemplazar el archivo: parece bloqueado por otro programa (abierto en Excel o en análisis/sincronización). Ciérralo allí y vuelve a guardar.',
   appSaveErrStylesheetLimited:
     'La hoja de estilos de este libro carece de estructura básica; los cambios de estilo no se pueden guardar.',
   appSaveErrPackageGuard:
@@ -677,6 +691,8 @@ export const es = {
   appTabFormulas: 'Fórmulas',
   appTabData: 'Datos',
   appTabReview: 'Revisar',
+  appRibbonCollapse: 'Contraer la cinta de opciones',
+  appRibbonPin: 'Anclar la cinta de opciones',
   appTabView: 'Vista',
   appTabAi: 'IA',
   appTabChartDesign: 'Diseño de gráfico',

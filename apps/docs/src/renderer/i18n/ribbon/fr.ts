@@ -12,6 +12,8 @@ export const fr = {
   ribbonTabLayout: 'Mise en page',
   ribbonTabReferences: 'Références',
   ribbonTabReview: 'Révision',
+  ribbonCollapse: 'Réduire le ruban',
+  ribbonPin: 'Épingler le ruban',
   ribbonTabView: 'Affichage',
   ribbonTabTableDesign: 'Création de tableau',
   ribbonTabTableLayout: 'Disposition du tableau',
@@ -151,6 +153,10 @@ export const fr = {
   ribbonOuterBordersTip: 'Bordures uniquement sur le pourtour de la sélection',
   ribbonInnerBorders: 'Bordures intérieures',
   ribbonInnerBordersTip: "Bordures uniquement à l'intérieur de la sélection",
+  ribbonTableInsideHBorders: 'Inside Horizontal',
+  ribbonTableInsideHBordersTip: 'Inside horizontal borders for the whole table',
+  ribbonTableInsideVBorders: 'Inside Vertical',
+  ribbonTableInsideVBordersTip: 'Inside vertical borders for the whole table',
   ribbonClearBordersTip: 'Effacer les bordures des cellules sélectionnées',
   ribbonBorderColor: 'Couleur de bordure',
   ribbonBorderWidth: 'Épaisseur de bordure',
@@ -296,6 +302,8 @@ export const fr = {
   ribbonChartAddCategory: '+ Catégorie',
   ribbonChartAddSeries: '+ Série',
   ribbonLinkInsertTitle: 'Insérer un lien hypertexte',
+  ribbonLinkEditTitle: 'Modifier le lien hypertexte',
+  ribbonLinkRemove: 'Supprimer le lien',
   ribbonLinkText: 'Texte à afficher',
   ribbonLinkTextPh: "Texte du lien (laisser vide pour afficher l'adresse)",
   ribbonLinkAddress: 'Adresse',
@@ -577,6 +585,9 @@ export const fr = {
   ribbonEditorPrompt:
     "Relisez tout le document : corrigez les fautes de frappe, la ponctuation et la grammaire en conservant le sens d'origine et la structure des paragraphes.",
   ribbonGroupProofing: 'Vérification',
+  ribbonSpellcheckBtn: 'Orthographe',
+  ribbonSpellcheckTip:
+    "Vérifier l'orthographe au cours de la frappe — souligne en rouge les mots peut-être mal orthographiés",
   ribbonTranslate: 'Traduire',
   ribbonTranslateTip: "L'IA traduit le document",
   ribbonTranslatePrompt:

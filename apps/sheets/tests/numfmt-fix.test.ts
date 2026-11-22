@@ -7,6 +7,8 @@ import {
   fixFormattedValue,
   formatGeneral,
   generalCharBudget,
+  hostLocalePattern,
+  isCalendarDatePattern,
   mergedSpanWidth,
   yenLiteralDisplay,
 } from '../src/renderer/numfmt-fix'
@@ -273,5 +275,76 @@ describe('decimal half-way rounding (Excel rounds the decimal literal)', () => {
     expect(decimalRoundForPattern('yyyy-mm-dd', 1.005)).toBeNull()
     expect(decimalRoundForPattern('# ?/?', 1.005)).toBeNull()
     expect(decimalRoundForPattern('0.00E+00', 1.005)).toBeNull()
+  })
+})
+
+describe('hostLocalePattern — [$sym-LCID] keeps host separators', () => {
+  const BRL = '_-[$R$-416]\\ * #,##0_-;\\-[$R$-416]\\ * #,##0_-;_-[$R$-416]\\ * "-"??_-;_-@_-'
+  const ARS = '[$$-2C0A]\\ #,##0.00;\\-[$$-2C0A]\\ #,##0.00'
+
+  it('drops the LCID but keeps the symbol', () => {
+    expect(hostLocalePattern(ARS)).toBe('[$$]\\ #,##0.00;\\-[$$]\\ #,##0.00')
+    expect(hostLocalePattern('[$€-x-euro2]#,##0.00')).toBe('[$€]#,##0.00')
+  })
+
+  it('leaves bare [$-LCID] tags and date patterns alone', () => {
+    expect(hostLocalePattern('[$-F800]dddd\\,\\ mmmm\\ dd\\,\\ yyyy')).toBe(
+      '[$-F800]dddd\\,\\ mmmm\\ dd\\,\\ yyyy',
+    )
+    expect(hostLocalePattern('[$€-410]dddd')).toBe('[$€-410]dddd')
+    expect(hostLocalePattern('#,##0.00')).toBe('#,##0.00')
+  })
+
+  it('pt-BR tag: 62175 renders R$ 62,175 on an en-US host', () => {
+    expect(fixFormattedValue(BRL, 62175, `${NBSP}R$ 62.175${NBSP}`)).toBe(
+      `${NBSP}R$${NBSP}62,175${NBSP}`,
+    )
+    expect(expandAsteriskFill(BRL, 62175, 20, (text) => text.length)).toBe(
+      `${NBSP}R$${NBSP.repeat(5)}62,175${NBSP}`,
+    )
+  })
+
+  it('es-AR tag: 5782059.91 renders 5,782,059.91 on an en-US host', () => {
+    expect(fixFormattedValue(ARS, 5782059.91, '$ 5.782.059,91')).toBe(`$${NBSP}5,782,059.91`)
+    expect(fixFormattedValue(ARS, -5782059.91, '-$ 5.782.059,91')).toBe(`-$${NBSP}5,782,059.91`)
+  })
+
+  it('is a no-op when Univer already matches', () => {
+    expect(fixFormattedValue(ARS, 5782059.91, `$${NBSP}5,782,059.91`)).toBeNull()
+  })
+
+  it('keeps the legacy yen tag working for the 0x5C swap', () => {
+    expect(fixFormattedValue('[$\\-411]#,##0', 1234, '\\1,234')).toBeNull()
+    expect(yenLiteralDisplay('[$\\-411]#,##0', '\\1,234', undefined)).toBe('¥1,234')
+  })
+
+  it('drops an empty [$] token: Excel prints nothing for it', () => {
+    expect(hostLocalePattern('[$]hh:mm;@')).toBe('hh:mm;@')
+    expect(hostLocalePattern('[$]#,##0.00')).toBe('#,##0.00')
+    // numfmt rejects `[$]` and Univer shows its ###### error text.
+    expect(fixFormattedValue('[$]hh:mm;@', 0.2083333333333333, '######')).toBe('05:00')
+    expect(fixFormattedValue('[$]hh:mm;@', 0.25, '0.25')).toBe('06:00')
+    expect(fixFormattedValue('[$]hh:mm;@', 0, '0')).toBe('00:00')
+    expect(fixFormattedValue('[$]hh:mm;@', 'late', 'late')).toBeNull()
+    expect(isCalendarDatePattern('[$]hh:mm;@')).toBe(false)
+    expect(isCalendarDatePattern('[$]dd/mm/yyyy')).toBe(true)
+  })
+
+  it('normalises [$] before the half-way rounding and exponential repairs', () => {
+    expect(fixFormattedValue('[$]0.00', 1.005, '######')).toBe('1.01')
+    expect(fixFormattedValue('[$]0.00', 1.005, '######')).toBe(
+      fixFormattedValue('0.00', 1.005, '1.00'),
+    )
+    expect(fixFormattedValue('[$]0.0000000000', 1.8744045912597986e-8, '######')).toBe(
+      '0.0000000187',
+    )
+    expect(fixFormattedValue('[$]0.00E+00', 1234.5, '######')).toBe('1.23E+03')
+  })
+
+  it('leaves locale-only and symbol-only tags to numfmt', () => {
+    expect(hostLocalePattern('[$-409]hh:mm;@')).toBe('[$-409]hh:mm;@')
+    expect(fixFormattedValue('[$-409]hh:mm;@', 0.25, '06:00')).toBeNull()
+    expect(hostLocalePattern('[$€]#,##0.00')).toBe('[$€]#,##0.00')
+    expect(fixFormattedValue('[$€]#,##0.00', 0.25, '€0.25')).toBeNull()
   })
 })

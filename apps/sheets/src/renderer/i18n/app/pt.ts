@@ -300,6 +300,8 @@ export const pt = {
   appAiDone: 'A IA terminou',
   appAiTurnLimit:
     '(Limite de chamadas de ferramentas atingido para esta solicitação; a resposta acima se baseia no que foi lido até agora e pode estar incompleta.)',
+  appAiTruncatedNote:
+    '(A resposta foi cortada pelo limite de comprimento e pode estar incompleta.)',
   appAiStopped: '(interrompido)',
   appAiNoSummary: 'A IA terminou sem gerar um resumo.',
   appAiNoAction: 'A IA não realizou nenhuma ação nem deu resposta. Tente novamente ou reformule.',
@@ -320,8 +322,19 @@ export const pt = {
     'Esta combinação de ícones não pode ser salva em xlsx — escolha outro conjunto de ícones.',
   appNeedFullLoadSort:
     'Classificar, filtrar, mover intervalos e dividir texto exigem o modo de carregamento completo — esta pasta de trabalho é muito grande e é carregada parcialmente por streaming.',
+  appFullLoadFilterTitle: 'A filtragem requer o carregamento completo',
+  appFullLoadFilterBody:
+    'Esta pasta de trabalho é grande e foi carregada apenas parcialmente em streaming. A filtragem (incluindo a contagem de valores) precisa dos dados completos. Carregar toda a pasta agora?',
+  appFullLoadStart: 'Carregar tudo',
+  appFullLoadRunning:
+    'Carregando toda a pasta de trabalho — a filtragem ficará disponível ao concluir…',
+  appFullLoadTooLarge:
+    'Esta pasta de trabalho é grande demais para ser totalmente carregada na memória; a filtragem não está disponível para este arquivo.',
+  appDialogCancel: 'Cancelar',
   appPivotSheetNoMove:
     'Esta planilha contém uma Tabela Dinâmica — mover intervalos ainda não é suportado.',
+  appMergeOverTable:
+    'A seleção sobrepõe uma tabela do Excel — mesclar células dentro de uma tabela ainda não é suportado.',
   appTableFilterNoEdit:
     'O filtro desta planilha pertence a uma tabela do Excel — a edição ainda não pode ser salva.',
   appAutofillStreaming:
@@ -586,6 +599,8 @@ export const pt = {
     'Alterações de nomes definidos não podem ser salvas junto com alterações de linhas/colunas ou de estrutura de planilhas — salve em duas etapas.',
   appSaveErrChangedOnDisk:
     'O arquivo foi alterado no disco por outro programa — salvamento cancelado; reabra o arquivo e tente novamente.',
+  appSaveErrTargetLocked:
+    'Não foi possível substituir o arquivo — parece bloqueado por outro programa (aberto no Excel ou em verificação/sincronização). Feche-o lá e salve novamente.',
   appSaveErrStylesheetLimited:
     'A folha de estilos desta pasta de trabalho não tem a estrutura básica; as alterações de estilo não podem ser salvas.',
   appSaveErrPackageGuard:
@@ -675,6 +690,8 @@ export const pt = {
   appTabFormulas: 'Fórmulas',
   appTabData: 'Dados',
   appTabReview: 'Revisão',
+  appRibbonCollapse: 'Recolher a Faixa de Opções',
+  appRibbonPin: 'Fixar a Faixa de Opções',
   appTabView: 'Exibir',
   appTabAi: 'IA',
   appTabChartDesign: 'Design do Gráfico',

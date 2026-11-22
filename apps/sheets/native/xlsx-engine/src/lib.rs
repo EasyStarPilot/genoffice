@@ -53,7 +53,6 @@ const RANGE_WAIT: Duration = Duration::from_millis(750);
 /// answer immediately instead and let the caller poll.
 const RANGE_WAIT_MAX_LAG_ROWS: usize = 16 * CHUNK_ROW_COUNT;
 const MAX_FORMULA_CELLS: usize = 100_000;
-const MAX_ENTRY_COUNT: usize = 10_000;
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 struct ChunkData {
@@ -128,7 +127,7 @@ impl WorkbookSessions {
         let canonical_path = path.canonicalize()?;
         let file = File::open(&canonical_path)?;
         let mut archive = ZipArchive::new(file)?;
-        validate_archive(&mut archive)?;
+        archive::validate_entries(&mut archive)?;
         let entry_count = archive.len();
         let mut color_context = visuals::read_theme_palette(&mut archive)?;
         visuals::read_indexed_palette(&mut archive, &mut color_context)?;
@@ -585,6 +584,11 @@ impl WorkbookSession {
         } else {
             None
         };
+        let auto_filter_columns = if indexing_complete {
+            index.auto_filter_columns.clone()
+        } else {
+            Vec::new()
+        };
         let data_validations = if indexing_complete {
             index.data_validations.clone()
         } else {
@@ -654,6 +658,7 @@ impl WorkbookSession {
             hyperlinks,
             conditional_rules,
             auto_filter,
+            auto_filter_columns,
             data_validations,
             sheet_protection,
             row_breaks,
@@ -727,6 +732,7 @@ struct SheetIndex {
     hyperlinks: Vec<HyperlinkRecord>,
     conditional_rules: Vec<ConditionalRule>,
     auto_filter: Option<MergedRange>,
+    auto_filter_columns: Vec<FilterColumnCriteria>,
     data_validations: Vec<DataValidationRule>,
     sheet_protection: Option<SheetProtectionInfo>,
     row_breaks: Vec<usize>,

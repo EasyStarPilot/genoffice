@@ -1058,18 +1058,20 @@ type Rgb = readonly [number, number, number]
     which in turn inherits the original run. */
 export interface RunStyle {
   color?: Rgb
+  background?: Rgb
   font?: string
   size?: number
   bold?: boolean
   italic?: boolean
 }
 
-/** Identity key for segmentation — style objects are compared by value, not reference
-    (overlaying preserved colors under user runs builds fresh objects per char) */
+/*** Identity key for segmentation — style objects are compared by value, not reference
+    (overlaying preserved colors under user runs builds fresh objects per char) ***/
 const styleKeyOf = (s: RunStyle | null): string =>
   s
     ? [
         s.color ? s.color.join(',') : '',
+        s.background ? s.background.join(',') : '',
         s.font ?? '',
         s.size ?? '',
         s.bold === undefined ? '' : s.bold ? 1 : 0,
@@ -1644,7 +1646,11 @@ async function rebuildRun(
       lineMatrix[5] = y
       m.HEAPF32.set(lineMatrix, matPtr >> 2)
       m._FPDFPageObj_SetMatrix(newObj, matPtr)
-      const c = style?.color ? [style.color[0], style.color[1], style.color[2], 255] : color
+      const c = style?.background
+        ? [style.background[0]!, style.background[1]!, style.background[2]!, 255]
+        : style?.color
+          ? [style.color[0]!, style.color[1]!, style.color[2]!, 255]
+          : color
       m._FPDFPageObj_SetFillColor(newObj, c[0]!, c[1]!, c[2]!, c[3]!)
       newObjs.push(newObj)
       segAnchors.push(lastKeptObj)

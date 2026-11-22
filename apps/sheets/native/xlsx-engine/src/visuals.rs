@@ -198,6 +198,31 @@ pub struct ChartSeries {
     /// positions in the compacted innermost `categories` (end exclusive).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category_groups: Option<Vec<CategoryGroup>>,
+    /// Parent plot group (`barChart`, `lineChart`, ...) so a combo chart
+    /// draws each series with its own group's type instead of by position.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plot: Option<String>,
+    /// Label mode this series resolves to: its own `c:dLbls`, else the plot
+    /// element's. Absent when neither carries one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_labels: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub point_labels: Option<Vec<PointLabel>>,
+}
+
+/// Per-point `c:dLbl`: whether the value shows, plus the manualLayout
+/// offset from the default anchor as fractions of the chart space.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PointLabel {
+    pub index: u32,
+    /// Absent when the dLbl carries no showVal/delete: the series mode applies.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub show_val: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset_x: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset_y: Option<f64>,
 }
 
 /// One outer-level group label spanning innermost categories [start, end).
@@ -436,6 +461,11 @@ pub struct VisualObject {
     /// a:bodyPr/@anchor — t | ctr | b.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_anchor: Option<String>,
+    /// a:bodyPr/@vertOverflow, @horzOverflow — overflow (default) | clip | ellipsis.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_vert_overflow: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_horz_overflow: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paragraphs: Option<Vec<ShapeParagraph>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -710,6 +740,8 @@ pub fn read_visual_objects(
         let sheet_relationships = read_relationships(archive, &sheet.worksheet_path)?;
         let ole_objects = read_ole_objects(archive, &sheet.worksheet_path, &sheet_relationships)?;
         let ole_shape_ids: HashSet<u32> = ole_objects.iter().map(|ole| ole.shape_id).collect();
+        let slicer_captions =
+            read_slicer_captions(archive, &sheet.worksheet_path, &sheet_relationships);
         let drawing_relationship = sheet_relationships
             .values()
             .find(|relationship| relationship.relationship_type.ends_with("/drawing"));
@@ -729,6 +761,7 @@ pub fn read_visual_objects(
                 visuals.len(),
                 colors,
                 &ole_shape_ids,
+                &slicer_captions,
             )?);
         }
         if ole_objects.is_empty() {
@@ -793,6 +826,8 @@ pub fn read_visual_objects(
                 flip_v: false,
                 text_color: None,
                 text_anchor: None,
+                text_vert_overflow: None,
+                text_horz_overflow: None,
                 paragraphs: None,
                 text: None,
                 prog_id: Some(ole.prog_id),
@@ -818,6 +853,40 @@ pub fn read_visual_objects(
         visuals.retain(|visual| !is_fallback(visual));
     }
     Ok(visuals)
+}
+
+/// Slicer/timeline part name → caption for the sheet's `xl/slicers/*.xml`
+/// and `xl/timelines/*.xml` parts; the drawing frame carries only the name.
+fn read_slicer_captions(
+    archive: &mut ZipArchive<File>,
+    worksheet_path: &str,
+    relationships: &HashMap<String, Relationship>,
+) -> HashMap<String, String> {
+    let mut captions = HashMap::new();
+    for relationship in relationships.values().filter(|relationship| {
+        relationship.relationship_type.ends_with("/slicer")
+            || relationship.relationship_type.ends_with("/timeline")
+    }) {
+        let Ok(path) = resolve_part_target(worksheet_path, &relationship.target) else {
+            continue;
+        };
+        let Ok(xml) = read_xml(archive, &path) else {
+            continue;
+        };
+        let Ok(document) = parse_document(&xml, &path) else {
+            continue;
+        };
+        for node in document
+            .descendants()
+            .filter(|node| node.has_tag_name("slicer") || node.has_tag_name("timeline"))
+        {
+            if let (Some(name), Some(caption)) = (node.attribute("name"), node.attribute("caption"))
+            {
+                captions.insert(name.to_owned(), caption.to_owned());
+            }
+        }
+    }
+    captions
 }
 
 /// One worksheet `<oleObject>`: Excel's embedded (or linked) object record.
@@ -1586,12 +1655,13 @@ fn drawing_name(anchor: Node<'_, '_>) -> Option<String> {
 }
 
 fn media_type_for_path(path: &str) -> Option<&'static str> {
-    match Path::new(path)
+    // Some writers name parts after the full content type, leaving its
+    // parameters in the extension (`image1.jpeg;charset=iso-8859-1`).
+    let extension = Path::new(path)
         .extension()
-        .and_then(|value| value.to_str())?
-        .to_ascii_lowercase()
-        .as_str()
-    {
+        .and_then(|value| value.to_str())?;
+    let extension = extension.split(';').next().unwrap_or(extension);
+    match extension.to_ascii_lowercase().as_str() {
         "png" => Some("image/png"),
         "jpg" | "jpeg" => Some("image/jpeg"),
         "gif" => Some("image/gif"),

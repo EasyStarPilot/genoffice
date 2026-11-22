@@ -32,12 +32,20 @@ async function fetchOpenRouterModels(config: AiProviderConfig): Promise<FetchMod
   return { ok: true, models }
 }
 
-/** local Ollama and Ollama Cloud both expose the OpenAI-compatible GET /models route */
+/**
+ * Local Ollama and Ollama Cloud both expose the OpenAI-compatible GET /models
+ * route. A baseUrlLocked provider (Ollama Cloud) always queries its fixed
+ * endpoint — the same rule the chat path applies — so a stored base URL can
+ * neither redirect the key nor make the catalog disagree with chat.
+ */
 async function fetchOllamaModels(
   provider: 'ollama' | 'ollamaCloud',
   config: AiProviderConfig,
 ): Promise<FetchModelsResult> {
-  const baseUrl = config.baseUrl || getProviderAdapter(provider).resolveEndpoint(config).baseUrl
+  const adapter = getProviderAdapter(provider)
+  const baseUrl = adapter.meta.baseUrlLocked
+    ? adapter.resolveEndpoint(config).baseUrl
+    : config.baseUrl || adapter.resolveEndpoint(config).baseUrl
   const response = await aiFetch(`${baseUrl.replace(/\/$/, '')}/models`, {
     headers: authHeaders(config.apiKey),
   })

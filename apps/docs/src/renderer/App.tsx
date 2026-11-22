@@ -1,3 +1,4 @@
+import { DOC_CSS_COMMITTED_EVENT } from './editor/cjk-punct-shrink'
 import {
   useCallback,
   useEffect,
@@ -12,8 +13,10 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 import { DOMParser as PmDOMParser, type Mark as PmMark } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
-import { Dropdown } from '@genoffice/ui'
+import { Dropdown, useAutoSavePref } from '@genoffice/ui'
+import { wordRangeAtCaret } from './editor/comments'
 import { markdownPasteHtml } from './editor/markdown-paste'
+import { pasteTextSlice, singleCellPasteText } from './editor/paste-text'
 import {
   BLANK_BULLET_NUM_ID,
   BLANK_ORDERED_NUM_ID,
@@ -40,6 +43,7 @@ import { AI_PROVIDERS } from '../shared/ipc'
 import { AiPanel, AI_REVISION_AUTHOR } from './ai/AiPanel'
 import type { AiCommentsAccess, AiHeaderFooterAccess } from './ai/tools'
 import { applyHfText, hfEditText } from './editor/hf-text'
+import { textColorValue } from './editor/text-color'
 import { AiAskPopover } from './components/AiAskPopover'
 import { EDIT_QUEUE_MAX, selectionForAnchor, type DocsEditQueueItem } from './ai/edit-queue'
 import { addQueueAnchor, clearQueueAnchors, removeQueueAnchors } from './editor/ai-queue-anchors'
@@ -88,6 +92,7 @@ import {
   sectionFirstPages,
   sectionGeoms,
   sectionPageBox,
+  canvasContentTopPx,
   effectiveTopPx,
   effectiveBottomPx,
   formatPageNumber,
@@ -120,15 +125,19 @@ import {
   syncMarginAnnotations,
 } from './editor/margin-annotations'
 import {
+  bumpHfProbeFontEpoch,
   hfHasVisibleContent,
   hfReservedHeightPx,
+  hfStripGeom,
   makeGapHfEl,
   makeHfFloatImgEl,
   type HfFloatBox,
 } from './editor/hf-dom'
 import {
+  cssFontFamily,
   estimateFootnoteHeight,
   resolveNoteStyle,
+  noteRunStyle,
   hfHeaderGeom,
   footnoteLineHeightPx,
   noteLineHeightPx,
@@ -136,6 +145,7 @@ import {
   textHasCjk,
 } from './line-metrics'
 import { saveUntilPersisted } from './save-until-persisted'
+import { SPELLCHECK_KEY, spellcheckEnabled } from './spellcheck-pref'
 import { cachedByDoc } from './doc-cache'
 import { useShallowStable, useStableCallbacks } from './use-stable'
 import { FindPanel } from './components/FindPanel'
@@ -188,6 +198,8 @@ import {
   resolvedCommentsPluginKey,
   revisionDisplayState,
 } from './editor/extensions'
+import { setDkColor } from './editor/dark-page'
+import { useUiThemeIsDark } from './ui-theme'
 import { type InkAnnotation, type InkTool } from './editor/ink'
 import { InkOverlay } from './components/InkOverlay'
 import { collectRevisions, gotoRevision, type TrackChangesStorage } from './editor/revisions'
@@ -208,6 +220,7 @@ import {
 import {
   applyAiDocContent as applyAiDocContentImpl,
   exportPdf as exportPdfImpl,
+  exportHtml as exportHtmlImpl,
   loadFile as loadFileImpl,
   newFile as newFileImpl,
   printDoc as printDocImpl,
@@ -230,6 +243,7 @@ import {
   compareWithFile as compareWithFileImpl,
   deleteComment as deleteCommentImpl,
   deleteNote as deleteNoteImpl,
+  editComment as editCommentImpl,
   handleRevision as handleRevisionImpl,
   removeInks as removeInksImpl,
   replyToComment as replyToCommentImpl,
@@ -366,8 +380,13 @@ function appendNoteRuns(row: HTMLElement, it: Omit<PageNoteItem, 'height' | 'id'
         if (run.italic) span.style.fontStyle = 'italic'
         const deco = [run.underline && 'underline', run.strike && 'line-through'].filter(Boolean)
         if (deco.length > 0) span.style.textDecoration = deco.join(' ')
-        if (run.color) span.style.color = `#${run.color}`
+        if (run.color) {
+          span.style.color = textColorValue(run.color)
+          // dark-page twin; the authored color stays the declaration
+          if (run.color !== 'auto') setDkColor(span, run.color)
+        }
         if (run.sizeHalfPoints) span.style.fontSize = `${run.sizeHalfPoints / 2}pt`
+        if (run.fontAscii) span.style.fontFamily = cssFontFamily(run.fontAscii)
         if (run.caps === 'all') span.style.textTransform = 'uppercase'
         else if (run.caps === 'small') span.style.fontVariantCaps = 'small-caps'
         row.append(span)
@@ -391,16 +410,17 @@ function measureNoteHeightDom(
   widthPx: number,
   lineHeightPx: number,
   fontSizePt: number,
+  fontFamily?: string,
 ): number | null {
   if (typeof document === 'undefined' || !document.body || widthPx <= 0) return null
   if (!noteMeasureHost || !noteMeasureHost.isConnected) {
     noteMeasureHost = document.createElement('div')
     noteMeasureHost.style.cssText =
       'position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none;text-align:left;text-indent:0;'
-    noteMeasureHost.style.fontFamily =
-      "Calibri, 'DengXian', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif"
     document.body.appendChild(noteMeasureHost)
   }
+  noteMeasureHost.style.fontFamily =
+    fontFamily ?? "Calibri, 'DengXian', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif"
   noteMeasureHost.style.width = `${widthPx}px`
   noteMeasureHost.style.fontSize = `${fontSizePt}pt`
   noteMeasureHost.style.lineHeight = `${lineHeightPx}px`
@@ -443,6 +463,7 @@ function makeGapNotesEl(
     // per-note resolved style: the entry's line boxes must match its reservation
     if (it.lineHeightPx) row.style.lineHeight = `${it.lineHeightPx}px`
     if (it.fontSizePt) row.style.fontSize = `${it.fontSizePt}pt`
+    if (it.fontFamily) row.style.fontFamily = it.fontFamily
     appendNoteRuns(row, it)
     row.addEventListener('dblclick', () => onEdit(it.id))
     wrap.appendChild(row)
@@ -464,6 +485,8 @@ export function App() {
   // subscribe to language switches for re-render; strings all go through module-level t, so memoized callbacks never capture stale closures
   const { lang } = useI18n()
   const [doc, setDoc] = useState<DocState | null>(null)
+  /** a phased open is still streaming the document tail: editor stays read-only */
+  const [docLoading, setDocLoading] = useState(false)
   /** true until the pending-open / new-blank boot checks settle; the start screen stays hidden meanwhile */
   const bootPendingRef = useRef<Promise<[OpenDocxResult, boolean, AiDocContent | null]> | null>(
     null,
@@ -488,6 +511,7 @@ export function App() {
   const [_recent, setRecent] = useState<string[]>([])
   const [settings, setSettings] = useState<AiSettings>(DEFAULT_SETTINGS)
   const [showAi, setShowAi] = useState(() => localStorage.getItem('aidocs.showAi') !== '0')
+  const [spellcheck, setSpellcheck] = useState(spellcheckEnabled)
   /** Increments on every open/new document: AiPanel remounts by key to reset the conversation and history (save path changes don't bump it, so the session continues) */
   const [aiPanelKey, setAiPanelKey] = useState(0)
   const [ribbonTabRequest, setRibbonTabRequest] = useState<{ tab: string; nonce: number } | null>(
@@ -495,7 +519,13 @@ export function App() {
   )
   const [status, setStatus] = useState('')
   const [zoom, setZoom] = useState(100)
-  const [darkCanvas, setDarkCanvas] = useState(false)
+  const scrollContainerRef = useRef<HTMLElement>(null)
+  // Word-style dark page (editor/dark-page.ts): on by default in the dark theme,
+  // View ▸ Dark Mode flips it for the session (Word's Switch Modes); a theme
+  // switch drops the override and follows the new theme again
+  const themeDark = useUiThemeIsDark()
+  const [darkPage, setDarkPage] = useState(themeDark)
+  useEffect(() => setDarkPage(themeDark), [themeDark])
   const [section, setSection] = useState<SectionSettings | null>(null)
   /** All sections (readSections): pagination/preview use per-section geometry; layout edits apply to the cursor's section */
   const [sections, setSections] = useState<SectionInfo[]>([])
@@ -753,7 +783,7 @@ export function App() {
     otherName: string
     entries: CompareEntry[]
   } | null>(null)
-  const [autoSave, setAutoSave] = useState(() => localStorage.getItem('aidocs.autoSave') === '1')
+  const [autoSave, setAutoSave] = useAutoSavePref('aidocs.autoSave', window.desktop)
   // tab closed but this renderer kept alive (shell freeze workaround): go inert
   const [tornDown, setTornDown] = useState(false)
   const [aiPreset, setAiPreset] = useState<{
@@ -781,6 +811,9 @@ export function App() {
   const [hfMeasureEpoch, setHfMeasureEpoch] = useState(0)
   useEffect(() => {
     setHfMeasureEpoch((e) => e + 1)
+    // measurement views that read computed alignment/spacing re-run once the
+    // stylesheet is in the DOM (setContent measured against the previous one)
+    document.dispatchEvent(new Event(DOC_CSS_COMMITTED_EVENT))
   }, [docCss, liveDocCjk, themeFonts, themeColors])
   const [stats, setStats] = useState<DocStats | null>(null)
   const [showLinkModal, setShowLinkModal] = useState(false)
@@ -809,17 +842,32 @@ export function App() {
     extensions: editorExtensions,
     content: { type: 'doc', content: [{ type: 'docParagraph' }] },
     editorProps: {
-      // Word checks spelling as you type by default
-      attributes: { class: 'doc-page', spellcheck: 'true' },
+      // Word checks spelling as you type by default; user toggle in Review → Spelling
+      attributes: { class: 'doc-page', spellcheck: spellcheckEnabled() ? 'true' : 'false' },
       // Word/web HTML cleanup: strip mso comments and <o:p>, unwrap <li><p>x</p></li>
       // (docListItem is an inline container; block-level p would shatter the list)
       transformPastedHTML: cleanPastedHtml,
+      // plain-text paste takes the insertion point's formatting like typing
+      // (Word Keep Text Only) — the default parser misses storedMarks (r172)
+      clipboardTextParser: (text, $context, _plain, view) => pasteTextSlice(text, $context, view),
       // clipboard images (screenshots/copied images): become inline images; mixed content
       // with HTML still uses default parsing (text in the HTML takes priority)
       handlePaste: (view, event) => {
         const data = event.clipboardData
         if (!data) return false
         const html = data.getData('text/html')
+        // a lone unformatted spreadsheet cell is a text paste (the r146 unwrap
+        // turns it into text) and takes the insertion point's formatting like
+        // typing (r172) — the HTML lanes below keep no marks for it and would
+        // land it in the theme font (r176: Sheets cell → Docs pasted as Aptos)
+        if (html) {
+          const cellText = singleCellPasteText(html)
+          if (cellText !== null) {
+            const slice = pasteTextSlice(cellText, view.state.selection.$from, view)
+            view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView())
+            return true
+          }
+        }
         // web-copied images (r139): "Copy image" in a browser puts a bitmap +
         // an <img src="http..."> HTML fragment + often the URL as text/plain
         // on the clipboard. Detect image-only HTML so the bitmap wins over
@@ -976,22 +1024,176 @@ export function App() {
     localStorage.setItem('aidocs.showAi', showAi ? '1' : '0')
   }, [showAi])
 
+  const spellcheckWasOn = useRef(spellcheck)
+  const respellKickBusy = useRef(false)
   useEffect(() => {
-    localStorage.setItem('aidocs.autoSave', autoSave ? '1' : '0')
-  }, [autoSave])
+    localStorage.setItem(SPELLCHECK_KEY, spellcheck ? '1' : '0')
+    // setOptions (not a direct DOM write): ProseMirror re-applies editorProps
+    // attributes on every updateState, so only the props route sticks
+    editor.setOptions({
+      editorProps: {
+        ...editor.options.editorProps,
+        attributes: {
+          ...(editor.options.editorProps.attributes as Record<string, string>),
+          spellcheck: spellcheck ? 'true' : 'false',
+        },
+      },
+    })
+    // Blink only respells an editable as a consequence of real (trusted)
+    // typing of a word-committing character inside it. The r168 retest ruled
+    // everything else out pixel by pixel: attribute flips, focus cycles (the
+    // first attempt at this fix), script or execCommand edits, fresh DOM
+    // nodes, session spellchecker kicks, synthetic clicks and arrow keys —
+    // even a typed zero-width space — existing typos stay unmarked. So on the
+    // re-enable transition, have the main process type one trusted space at
+    // the caret and remove it again by script (a trusted Backspace would work
+    // too, but its deletion re-suppresses the caret paragraph's markers).
+    // ProseMirror must not see any of it: its DOM observer is paused (no
+    // transaction, no history entry, no dirty flag) and a capture-phase key
+    // shield keeps its keymap and other key handlers out of the round trip —
+    // the same shield also tells us when the keystroke has actually landed.
+    if (spellcheck && !spellcheckWasOn.current) {
+      requestAnimationFrame(() => {
+        const view = editor.view
+        const dom = view.dom
+        if (!dom.isConnected || view.composing || respellKickBusy.current) return
+        respellKickBusy.current = true
+        const sub = getActiveSubEditor()
+        const prev = document.activeElement as HTMLElement | null
+        view.focus() // puts the DOM caret where the state says it is
+        const sel = window.getSelection()
+        // typing over a range would replace it — kick from a caret instead;
+        // view.focus() below restores the real selection from PM state after
+        if (sel && !sel.isCollapsed) sel.collapseToEnd()
+        // the kick inserts exactly one space at the caret; snapshot the caret
+        // text node so the scrub can restore it byte-identically
+        const caretNode = sel?.anchorNode
+        const caretText = caretNode instanceof Text ? caretNode : null
+        const caretData = caretText?.data ?? null
+        let sawKick = false
+        const shield = (e: KeyboardEvent) => {
+          if (e.key === ' ') sawKick = true
+          e.stopPropagation()
+        }
+        document.addEventListener('keydown', shield, true)
+        document.addEventListener('keypress', shield, true)
+        const observer = (
+          view as unknown as { domObserver: { stop: () => void; start: () => void } }
+        ).domObserver
+        observer.stop()
+        const scrub = () => {
+          // caret in a text node: remove exactly the one inserted character.
+          // deleteData keeps the node's other spell markers alive — a whole
+          // `data` reassignment would wipe the paragraph's fresh squiggles.
+          if (caretText && caretData !== null && caretText.data !== caretData) {
+            const now = caretText.data
+            if (now.length === caretData.length + 1) {
+              let i = 0
+              while (i < caretData.length && now[i] === caretData[i]) i++
+              caretText.deleteData(i, 1)
+            }
+            if (caretText.data !== caretData) caretText.data = caretData
+            return
+          }
+          // the space landed elsewhere: Blink canonicalizes the insertion point
+          // (end of a link, mark boundary, empty paragraph) into a sibling or
+          // fresh text node — the caret it left sits right after the space
+          if (!sawKick) return
+          const after = window.getSelection()
+          const node = after?.anchorNode
+          if (!(node instanceof Text) || !after || after.anchorOffset === 0) return
+          if (node === caretText) return
+          const ch = node.data[after.anchorOffset - 1]
+          if (ch === ' ' || ch === '\u00a0') node.deleteData(after.anchorOffset - 1, 1)
+        }
+        void window.desktop
+          .respellKick()
+          .catch(() => undefined)
+          .then(async () => {
+            // the IPC can resolve before the input pipeline delivers the
+            // keystroke — wait for the shield to see it (or give up quietly:
+            // a kick that never landed left nothing to scrub)
+            const deadline = Date.now() + 800
+            while (!sawKick && Date.now() < deadline) {
+              await new Promise((r) => setTimeout(r, 30))
+            }
+            scrub()
+            observer.start()
+            document.removeEventListener('keydown', shield, true)
+            document.removeEventListener('keypress', shield, true)
+            respellKickBusy.current = false
+            view.focus() // resync the DOM selection from PM state
+            // ribbon toggle during textbox editing: keep the routing and hand
+            // the keyboard back where it was — typing must not replace the box
+            if (!sub) return
+            setActiveSubEditor(sub)
+            if (prev && prev !== dom) prev.focus({ preventScroll: true })
+          })
+      })
+    }
+    spellcheckWasOn.current = spellcheck
+  }, [editor, spellcheck])
 
   // Pinch-to-zoom: Chromium delivers trackpad pinch as a wheel event
   // with ctrlKey set. Also support ⌘+scroll. Must be non-passive to preventDefault.
+  // The viewport point under the cursor is stashed for the zoom layout effect
+  // below so the content there stays put (public #238); set only when the zoom
+  // actually changes, else a clamped tick would leave a stale anchor behind.
+  const zoomAnchorRef = useRef<{ vx: number; vy: number } | null>(null)
   useEffect(() => {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return
       if (!(e.target as HTMLElement | null)?.closest?.('.editor-scroll')) return
       e.preventDefault()
-      setZoom((z) => Math.min(200, Math.max(50, z - e.deltaY * 0.6)))
+      const rect = scrollContainerRef.current?.getBoundingClientRect()
+      const anchor = rect ? { vx: e.clientX - rect.left, vy: e.clientY - rect.top } : null
+      setZoom((z) => {
+        const next = Math.min(200, Math.max(50, z - e.deltaY * 0.6))
+        if (next !== z) zoomAnchorRef.current = anchor
+        return next
+      })
     }
     window.addEventListener('wheel', onWheel, { passive: false })
     return () => window.removeEventListener('wheel', onWheel)
   }, [])
+
+  // Keep the document point under the anchor (cursor for wheel zoom, viewport
+  // center otherwise) fixed across a zoom change. Runs after the zoomed layout
+  // is committed, so the page box is read post-zoom and the pre-zoom box is
+  // derived from it: CSS zoom scales the box linearly, the top edge is a fixed
+  // scroller padding, and `.doc-zoom` is margin-auto centered until it overflows.
+  // The pre-zoom scroll offsets come from the last scroll event: a zoom-out can
+  // shrink the overflow and clamp them before this effect gets to read them.
+  const scrollPosRef = useRef({ left: 0, top: 0 })
+  const prevZoomRef = useRef(zoom)
+  useLayoutEffect(() => {
+    const prevZoom = prevZoomRef.current
+    prevZoomRef.current = zoom
+    const anchor = zoomAnchorRef.current
+    zoomAnchorRef.current = null
+    const container = scrollContainerRef.current
+    const page = container?.querySelector<HTMLElement>('.doc-zoom')
+    if (!container || !page || prevZoom === zoom) return
+
+    const ratio = zoom / prevZoom
+    const vx = anchor ? anchor.vx : container.clientWidth / 2
+    const vy = anchor ? anchor.vy : container.clientHeight / 2
+    const cs = getComputedStyle(container)
+    const padLeft = parseFloat(cs.paddingLeft) || 0
+    const innerWidth = container.clientWidth - padLeft - (parseFloat(cs.paddingRight) || 0)
+    const containerRect = container.getBoundingClientRect()
+    const pageRect = page.getBoundingClientRect()
+    const pageLeft = pageRect.left - containerRect.left + container.scrollLeft
+    const pageTop = pageRect.top - containerRect.top + container.scrollTop
+    const prevPageLeft = padLeft + Math.max(0, (innerWidth - pageRect.width / ratio) / 2)
+    const prev = scrollPosRef.current
+
+    const docX = Math.max(0, prev.left + vx - prevPageLeft)
+    const docY = Math.max(0, prev.top + vy - pageTop)
+    container.scrollLeft = pageLeft + docX * ratio - vx
+    container.scrollTop = pageTop + docY * ratio - vy
+    scrollPosRef.current = { left: container.scrollLeft, top: container.scrollTop }
+  }, [zoom])
 
   // ---- protection enforcement (Review > Protect Document) ----
   const editRestriction = protection?.enforced ? protection.edit : null
@@ -1013,17 +1215,19 @@ export function App() {
     if (trackChangesForced && !trackChanges) setTrackChanges(true)
   }, [trackChangesForced, trackChanges])
 
-  // Read Mode / Protect Document: the document becomes read-only; Esc leaves Read Mode
+  // Read Mode / Protect Document: the document becomes read-only; Esc leaves Read Mode.
+  // A phased open is read-only too: edits while the tail streams could be
+  // interleaved with (or serialized without) the not-yet-appended blocks.
   useEffect(() => {
     if (!editor) return
-    editor.setEditable(!readMode && !isProtected)
+    editor.setEditable(!readMode && !isProtected && !docLoading)
     if (!readMode) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setReadMode(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editor, readMode, isProtected])
+  }, [editor, readMode, isProtected, docLoading])
 
   // Track Changes: the recorder plugin reads its toggle from extension storage
   useEffect(() => {
@@ -1040,9 +1244,10 @@ export function App() {
   useEffect(() => window.desktop.onTeardown?.(() => setTornDown(true)), [])
 
   // keep the native View menu's checkmarks (AI Sidebar / Dark Mode) in sync
+  // (the IPC field keeps its historical darkCanvas name)
   useEffect(() => {
-    window.desktop.reportViewMenuState?.({ aiSidebar: showAi, darkCanvas })
-  }, [showAi, darkCanvas])
+    window.desktop.reportViewMenuState?.({ aiSidebar: showAi, darkCanvas: darkPage })
+  }, [showAi, darkPage])
 
   // Crash-recovery copy: while the document is dirty, push a serialized
   // copy to the main process every 30s; a normal save (or discarding on close) removes
@@ -1128,6 +1333,7 @@ export function App() {
     setDoc,
     setAiPanelKey,
     setDocCss,
+    setDocLoading,
     setShowPagePreview,
     section,
     sectionDirty,
@@ -1234,10 +1440,13 @@ export function App() {
       setDocPwdPrompt({ path: info.path, name: info.name, value: '', errorKey: '', busy: false }),
   }
 
-  const loadFile = useCallback(
-    (result: OpenDocxResult) => loadFileImpl(fileCtxRef.current, result),
-    [],
-  )
+  const loadFile = useCallback(async (result: OpenDocxResult) => {
+    const outcome = await loadFileImpl(fileCtxRef.current, result)
+    // a failed open with no document yet (boot, or the open that superseded the
+    // boot open) must land on blank instead of the "Opening…" screen
+    if (outcome === 'failed' && !fileCtxRef.current.doc) await newFileImpl(fileCtxRef.current)
+    return outcome
+  }, [])
 
   // file renamed externally (renamed in the shell Home list) → sync the save path and title-bar file name (content unchanged)
   useEffect(
@@ -1280,7 +1489,7 @@ export function App() {
         // line explaining why (github.com/genspark-ai/genoffice issue #102).
         // 'password': the prompt is up; its cancel path lands on blank instead.
         const outcome = pending ? await loadFile(pending) : 'canceled'
-        if (outcome === 'failed' || outcome === 'canceled') await newFile()
+        if (outcome === 'canceled') await newFile()
         if (aiContent && !pending) {
           // fileCtxRef refreshes per render: wait until newFile's setDoc landed
           for (let i = 0; i < 100 && !fileCtxRef.current.doc; i++) {
@@ -1323,9 +1532,7 @@ export function App() {
     const res = await window.desktop.openDocxDecrypt(docPwdPrompt.path, docPwdPrompt.value)
     if (res.ok) {
       setDocPwdPrompt(null)
-      const outcome = await loadFile(res.result)
-      // decrypted fine but the content failed to parse: don't strand the boot screen
-      if (outcome === 'failed' && !fileCtxRef.current.doc) void newFile()
+      await loadFile(res.result)
       return
     }
     setDocPwdPrompt({
@@ -1641,6 +1848,10 @@ export function App() {
     (outPath?: string) => exportPdfImpl(fileCtxRef.current, outPath),
     [],
   )
+  const exportHtml = useCallback(
+    (outPath?: string) => exportHtmlImpl(fileCtxRef.current, outPath),
+    [],
+  )
   const printDoc = useCallback(() => printDocImpl(fileCtxRef.current), [])
 
   // for real-device verification: trigger export directly via CDP (same as __pageDebug)
@@ -1765,6 +1976,10 @@ export function App() {
   )
   const replyToComment = useCallback(
     (parentId: string, text: string) => replyToCommentImpl(reviewCtxRef.current, parentId, text),
+    [],
+  )
+  const editComment = useCallback(
+    (id: string, text: string) => editCommentImpl(reviewCtxRef.current, id, text),
     [],
   )
   const resolveComment = useCallback(
@@ -1893,11 +2108,14 @@ export function App() {
   // note paragraph metrics per pStyle + direct spacing (notes without either use Normal/docDefaults)
   const noteStyleOf = useMemo(() => {
     const cache = new Map<string, ReturnType<typeof resolveNoteStyle>>()
-    return (note?: Pick<NoteInfo, 'styleId' | 'spacing'>) => {
-      const key = `${note?.styleId ?? ''}|${JSON.stringify(note?.spacing ?? null)}`
+    return (note?: Pick<NoteInfo, 'styleId' | 'spacing' | 'richParas'>) => {
+      const runStyle = noteRunStyle(note?.richParas)
+      const key = `${note?.styleId ?? ''}|${JSON.stringify(note?.spacing ?? null)}|${runStyle.fontFamily ?? ''}|${runStyle.sizeHalfPoints ?? ''}`
       let v = cache.get(key)
       if (!v) {
-        v = doc ? resolveNoteStyle(doc.parsed, note?.styleId, note?.spacing) : {}
+        v = doc
+          ? { ...resolveNoteStyle(doc.parsed, note?.styleId, note?.spacing), ...runStyle }
+          : {}
         cache.set(key, v)
       }
       return v
@@ -1908,12 +2126,15 @@ export function App() {
   // height at the renderers' exact styles (DOM wrap truth; the char-width
   // estimate stays as the DOM-less fallback and the parity runner's model)
   const noteRenderInfoOf = useMemo(() => {
-    const cache = new Map<string, { height: number; lineHeightPx: number; fontSizePt: number }>()
+    const cache = new Map<
+      string,
+      { height: number; lineHeightPx: number; fontSizePt: number; fontFamily?: string }
+    >()
     return (
       fn: NoteInfo | undefined,
       no: number,
       sec: SectionSettings,
-    ): { height: number; lineHeightPx: number; fontSizePt: number } => {
+    ): { height: number; lineHeightPx: number; fontSizePt: number; fontFamily?: string } => {
       const contentW = twipsToPx(sec.pageWidth - sec.marginLeft - sec.marginRight)
       const key = `${fn?.id ?? ''}|${no}|${Math.round(contentW)}|${fn?.styleId ?? ''}|${fn?.text ?? ''}`
       let v = cache.get(key)
@@ -1921,6 +2142,7 @@ export function App() {
         const style = noteStyleOf(fn)
         const lineHeightPx = noteLineHeightPx(sec.docGrid, style)
         const fontSizePt = style.sizeHalfPoints ? style.sizeHalfPoints / 2 : 10
+        const fontFamily = style.fontFamily ? cssFontFamily(style.fontFamily) : undefined
         const height =
           measureNoteHeightDom(
             {
@@ -1932,6 +2154,7 @@ export function App() {
             contentW,
             lineHeightPx,
             fontSizePt,
+            fontFamily,
           ) ??
           estimateFootnoteHeight(
             fn?.text ?? '',
@@ -1941,7 +2164,7 @@ export function App() {
             style,
             fn?.richParas,
           )
-        v = { height, lineHeightPx, fontSizePt }
+        v = { height, lineHeightPx, fontSizePt, ...(fontFamily ? { fontFamily } : {}) }
         cache.set(key, v)
       }
       return v
@@ -2030,6 +2253,10 @@ export function App() {
   }, [section, header, footer, titlePg, hfVariants, doc, hfMeasureEpoch])
   const effTopSingle = section ? effectiveTopPx(section, singleHfPx.headerPx) : 0
   const effBottomSingle = section ? effectiveBottomPx(section, singleHfPx.footerPx) : 0
+  const canvasSection = sections[0]?.settings ?? section
+  const canvasBox = canvasSection ? sectionPageBox(canvasSection) : null
+  const canvasTop = section ? canvasContentTopPx(sections, section, singleHfPx.headerPx) : 0
+  const canvasBottom = canvasSection ? effectiveBottomPx(canvasSection, singleHfPx.footerPx) : 0
 
   // titlePg: the document's first page renders the first-page header/footer
   // variant (pageHfOf), so single-section slicing gives it its own capacity
@@ -2130,11 +2357,20 @@ export function App() {
       const b = doc?.parsed.blocks.find((bl) => bl.docxIndex === docxIndex)
       if (!b) return undefined
       if (b.type === 'table') {
-        if (!b.originalXml || !/tblHeader|cantSplit|<w:trHeight\b/.test(b.originalXml))
-          return undefined
+        // notes referenced inside cells reserve their page-bottom area like a
+        // paragraph's: the slicer charges them to the rows holding the marks
+        const fnBands = footnoteBandsOf(b)
+        const fnExtra = fnBands.reduce((s, band) => s + band.heightPx, 0)
+        const flagged = !!b.originalXml && /tblHeader|cantSplit|<w:trHeight\b/.test(b.originalXml)
+        if (!flagged && fnExtra === 0) return undefined
         return {
-          tableRowFlags: tableRowFlags(b.originalXml),
-          ...((doc?.parsed.compatibilityMode ?? 0) >= 15 ? { modernTableHeaders: true } : {}),
+          ...(flagged
+            ? {
+                tableRowFlags: tableRowFlags(b.originalXml!),
+                ...((doc?.parsed.compatibilityMode ?? 0) >= 15 ? { modernTableHeaders: true } : {}),
+              }
+            : {}),
+          ...(fnExtra > 0 ? { footnoteExtraPx: fnExtra, footnoteBands: fnBands } : {}),
         }
       }
       const styleDisplay = b.styleId ? doc?.parsed.styles.get(b.styleId)?.display : undefined
@@ -2193,6 +2429,7 @@ export function App() {
             height: info.height,
             lineHeightPx: info.lineHeightPx,
             fontSizePt: info.fontSizePt,
+            ...(info.fontFamily ? { fontFamily: info.fontFamily } : {}),
           })
         }
       }
@@ -2216,6 +2453,7 @@ export function App() {
         height: info.height,
         lineHeightPx: info.lineHeightPx,
         fontSizePt: info.fontSizePt,
+        ...(info.fontFamily ? { fontFamily: info.fontFamily } : {}),
       }
     })
   }, [endnotes, sections, section, noteRenderInfoOf])
@@ -2298,7 +2536,7 @@ export function App() {
     if (!pm) return null
     const factor = zoom / 100
     const { mBlocks, slices, secs } = measureSingleFlow(pm, () => {
-      const origin = pm.getBoundingClientRect().top + effTopSingle * factor
+      const origin = pm.getBoundingClientRect().top + canvasTop * factor
       const { blocks, totalHeight, sectBreaks } = measureBlocks(pm, origin, factor)
       const live = liveSections(sections, blocks, sectBreaks, delSectBreaks)
       let s: PageSlice[]
@@ -2349,6 +2587,7 @@ export function App() {
     delSectBreaks,
     zoom,
     blockMetaOf,
+    canvasTop,
     effTopSingle,
     effBottomSingle,
     singleFirstContentH,
@@ -2367,7 +2606,7 @@ export function App() {
     const scroller = document.querySelector('.editor-scroll')
     if (!scroller) return
     const factor = zoom / 100
-    const mTopPx = effTopSingle
+    const mTopPx = canvasTop
     const contentH = twipsToPx(section.pageHeight) - effTopSingle - effBottomSingle
     let slices: PageSlice[] = []
     let timer: number | null = null
@@ -2643,6 +2882,11 @@ export function App() {
               el.style.width = `${Math.min(box.contentWidth, canvasPaperW)}px`
             }
           }
+          // page x of a gap strip's left edge, mirroring sizeGapHf (centered, or on the body's left margin)
+          const gapStripLeft = (set: SectionSettings, box: { contentWidth: number }) =>
+            mixedWidths
+              ? twipsToPx(set.marginLeft)
+              : (canvasPaperW - Math.min(box.contentWidth, canvasPaperW)) / 2
           // strip geometry baked in at creation (sizeGapHf, --hf-ml): the gap key's
           // mKey carries the NEXT section's side margins only, while the footer strip
           // is sized and inset by the PREVIOUS section — a left-margin edit on that
@@ -2687,6 +2931,7 @@ export function App() {
               // paper offset (which folds in paragraph indents and cell positions)
               sectionMarginLeft: twipsToPx(nextSec.marginLeft),
               sectionMarginRight: twipsToPx(nextSec.marginRight),
+              sectionMarginTop: twipsToPx(nextSec.marginTop),
             }
             // a page ended early (explicit break / section break / keepNext) leaves unused
             // content height; pad the gap so the canvas paints the full paper height and the
@@ -2725,6 +2970,7 @@ export function App() {
                 images: gapFooter.images,
                 pageNo: pageNoTextOf(k),
                 pageTotal: visiblePages,
+                geom: { ...hfStripGeom(prevSec), stripLeft: gapStripLeft(prevSec, box) },
               })
               el.style.top = 'auto'
               el.style.bottom = `${GAP_BAND + metrics.marginTop + box.footerDist}px`
@@ -2736,15 +2982,22 @@ export function App() {
             }
             if (hfHasVisibleContent(gapHeader.value, gapHeader.images)) {
               const box = sectionPageBox(nextSec)
+              // the strip cannot start below the body top: a top margin under headerDist pins it higher
+              const headerStripTop = Math.min(box.headerDist, metrics.marginTop)
               const el = makeGapHfEl({
                 kind: 'header',
                 value: gapHeader.value ?? { text: '' },
                 images: gapHeader.images,
                 pageNo: pageNoTextOf(k + 1),
                 pageTotal: visiblePages,
+                geom: {
+                  ...hfStripGeom(nextSec),
+                  headerStripTop,
+                  stripLeft: gapStripLeft(nextSec, box),
+                },
               })
               el.style.bottom = 'auto'
-              el.style.top = `calc(100% - ${Math.max(0, metrics.marginTop - box.headerDist)}px)`
+              el.style.top = `calc(100% - ${metrics.marginTop - headerStripTop}px)`
               sizeGapHf(el, box)
               el.style.setProperty('--hf-ml', `${twipsToPx(nextSec.marginLeft)}px`)
               hfEls.push(el)
@@ -3140,7 +3393,13 @@ export function App() {
           alignGapHfStrips(pm, twipsToPx(cSet.marginLeft), factor)
         }
         // after setPageGaps: widget insertion is synchronous, so anchor rects are final
-        syncFloatShifts(pm, floats, pm.getBoundingClientRect().top + mTopPx * factor, factor)
+        syncFloatShifts(
+          pm,
+          floats,
+          pm.getBoundingClientRect().top + mTopPx * factor,
+          factor,
+          mTopPx - twipsToPx((sections[0]?.settings ?? section)?.marginTop ?? 0),
+        )
         // Word keeps anchored objects on the page: cell boxes lifted past the
         // paper top by a negative anchor offset are pushed back down
         clampCellBoxTops(pm, pm.getBoundingClientRect().top, factor)
@@ -3275,17 +3534,29 @@ export function App() {
     remeasure()
     // async @font-face loading triggers a full reflow (line-break points change); pagination
     // must be remeasured, and cached line samples invalidated (block heights may not change)
-    const onFontsChanged = () => {
+    // header/footer strips probed under a fallback face re-measure too
+    // (debounced: loadingdone fires per face, thousands of times on CJK documents)
+    let hfTimer: number | undefined
+    const onFontsChanged = (reprobeHf: boolean) => {
       bumpLineSampleFontEpoch()
+      if (reprobeHf) {
+        bumpHfProbeFontEpoch()
+        if (hfTimer) window.clearTimeout(hfTimer)
+        hfTimer = window.setTimeout(() => setHfMeasureEpoch((e) => e + 1), 300)
+      }
       onUpdate()
     }
-    document.fonts.ready.then(onFontsChanged).catch(() => {})
-    document.fonts.addEventListener('loadingdone', onFontsChanged)
+    // the epoch bump re-runs this effect; an already-settled ready promise must not re-probe
+    const fontsLoading = document.fonts.status === 'loading'
+    document.fonts.ready.then(() => onFontsChanged(fontsLoading)).catch(() => {})
+    const onLoadingDone = () => onFontsChanged(true)
+    document.fonts.addEventListener('loadingdone', onLoadingDone)
     scroller.addEventListener('scroll', locate, { passive: true })
     editor?.on('update', onUpdate)
     return () => {
       if (timer) window.clearTimeout(timer)
-      document.fonts.removeEventListener('loadingdone', onFontsChanged)
+      if (hfTimer) window.clearTimeout(hfTimer)
+      document.fonts.removeEventListener('loadingdone', onLoadingDone)
       scroller.removeEventListener('scroll', locate)
       editor?.off('update', onUpdate)
     }
@@ -3301,6 +3572,7 @@ export function App() {
     pageFootnotesOf,
     endnoteItems,
     editNote,
+    canvasTop,
     effTopSingle,
     effBottomSingle,
     singleFirstContentH,
@@ -3548,10 +3820,7 @@ export function App() {
       ) {
         e.preventDefault()
         const attrs = { lineSpacing: SPACING_KEYS[e.code], lineRule: null, lineRawTwips: null }
-        const sub = getActiveSubEditor()
-        // textbox schema has only docParagraph — setParaAttrs' heading/list updates would throw
-        if (sub) sub.chain().focus().updateAttributes('docParagraph', attrs).run()
-        else setParaAttrs(editor, attrs)
+        setParaAttrs(getActiveSubEditor() ?? editor, attrs)
       }
       // Paragraph styles ⌥⌘0 Normal / ⌥⌘1..3 headings (Ctrl+Shift+N is taken by New Window)
       const STYLE_KEYS: Record<string, 'p' | 'h1' | 'h2' | 'h3'> = {
@@ -3764,7 +4033,7 @@ export function App() {
           setShowAi((v) => !v)
           break
         case 'toggle-dark':
-          setDarkCanvas((v) => !v)
+          setDarkPage((v) => !v)
           break
         case 'insert-table':
           // Word semantics: the menu opens the Insert Table dialog (custom rows/cols)
@@ -3834,6 +4103,9 @@ export function App() {
         case 'export-pdf':
           void exportPdf()
           break
+        case 'export-html':
+          void exportHtml()
+          break
         case 'print':
           if (doc) void printDoc()
           break
@@ -3847,6 +4119,7 @@ export function App() {
     openRecent,
     save,
     exportPdf,
+    exportHtml,
     printDoc,
     zoomFit,
     openStats,
@@ -3958,8 +4231,9 @@ export function App() {
       save: () => save(false),
       getStatus: () => status,
       exportPdfTo: (path: string) => exportPdf(path),
+      exportHtmlTo: (path: string) => exportHtml(path),
     }
-  }, [editor, openRecent, save, status, exportPdf])
+  }, [editor, openRecent, save, status, exportPdf, exportHtml])
 
   // shallow-stable snapshot of every editor read the ribbon displays: caret moves
   // that change none of it keep the reference, so the memoized Ribbon skips
@@ -4151,7 +4425,7 @@ export function App() {
     headingPages,
     onZoom: setZoom,
     onZoomFit: zoomFit,
-    onDarkCanvas: setDarkCanvas,
+    onDarkPage: setDarkPage,
     onAiPreset: (text: string) => {
       // Word's Editor / Translate start working as soon as they're clicked
       setShowAi(true)
@@ -4180,6 +4454,7 @@ export function App() {
     onShowComments: () => setShowComments(true),
     onNewComment: startNewComment,
     onTrackChanges: setTrackChanges,
+    onSpellcheck: setSpellcheck,
     onRevisionDisplay: setRevisionDisplay,
     onAcceptRevision: (all: boolean) => handleRevision('accept', all),
     onRejectRevision: (all: boolean) => handleRevision('reject', all),
@@ -4265,10 +4540,6 @@ export function App() {
 
   // canvas geometry is anchored to the first section (stable across cursor moves);
   // sections with a different content width carry per-block width decorations
-  const canvasSection = sections[0]?.settings ?? section
-  const canvasBox = canvasSection ? sectionPageBox(canvasSection) : null
-  const canvasTop = canvasSection ? effectiveTopPx(canvasSection, singleHfPx.headerPx) : 0
-  const canvasBottom = canvasSection ? effectiveBottomPx(canvasSection, singleHfPx.footerPx) : 0
   // the shared paper must cover the widest section or its content lays out past
   // the paper edge onto the editor background (a white band down the right side)
   const paperW = canvasBox
@@ -4316,6 +4587,17 @@ export function App() {
     '--page-bg': pageColor ? `#${pageColor}` : undefined,
     '--page-cols': colFlow && viewMode === 'print' ? colFlow.cols : undefined,
   } as CSSProperties
+
+  // page-dark: dark paper + remapped colors (styles.css @media screen block); a
+  // document with its own page color keeps it, Word-style. workspace-dark: the
+  // gray canvas band around the dark paper when the chrome itself is light.
+  const workspaceClass = [
+    'workspace',
+    darkPage && !pageColor ? 'page-dark' : '',
+    darkPage && !themeDark ? 'workspace-dark' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   const docZoomClass = [
     'doc-zoom',
@@ -4382,7 +4664,7 @@ export function App() {
         inkCount={inkAnnotations.length}
         sources={sources}
         zoom={Math.round(zoom)}
-        darkCanvas={darkCanvas}
+        darkPage={darkPage}
         tabRequest={ribbonTabRequest}
         header={header}
         footer={footer}
@@ -4393,8 +4675,9 @@ export function App() {
         showNav={showNav}
         commentCount={comments.length}
         openCommentCount={comments.filter((c) => !c.parentId && c.done !== true).length}
-        canComment={!editor.state.selection.empty}
+        canComment={!editor.state.selection.empty || wordRangeAtCaret(editor) !== null}
         trackChanges={trackChanges}
+        spellcheck={spellcheck}
         revisionDisplay={revisionDisplay}
         revisionCount={revisionCount}
         isProtected={isProtected}
@@ -4441,7 +4724,7 @@ export function App() {
           </div>
         )}
         <div className="app-content">
-          <div className={`workspace ${darkCanvas ? 'workspace-dark' : ''}`}>
+          <div className={workspaceClass}>
             {doc && showFind && (
               <FindPanel
                 editor={editor}
@@ -4467,7 +4750,16 @@ export function App() {
               />
             )}
             <div className="editor-area">
-              <main className="editor-scroll">
+              <main
+                className="editor-scroll"
+                ref={scrollContainerRef}
+                onScroll={(e) => {
+                  scrollPosRef.current = {
+                    left: e.currentTarget.scrollLeft,
+                    top: e.currentTarget.scrollTop,
+                  }
+                }}
+              >
                 {doc ? (
                   <div
                     className={docZoomClass}
@@ -4481,19 +4773,7 @@ export function App() {
                         editor={editor}
                         onTabStopsChange={(stops) => {
                           if (!editor) return
-                          editor
-                            .chain()
-                            .focus()
-                            .updateAttributes('docParagraph', {
-                              tabStops: stops ? JSON.stringify(stops) : null,
-                            })
-                            .updateAttributes('docHeading', {
-                              tabStops: stops ? JSON.stringify(stops) : null,
-                            })
-                            .updateAttributes('docListItem', {
-                              tabStops: stops ? JSON.stringify(stops) : null,
-                            })
-                            .run()
+                          setParaAttrs(editor, { tabStops: stops ? JSON.stringify(stops) : null })
                         }}
                       />
                     )}
@@ -4548,9 +4828,7 @@ export function App() {
                       {Boolean(
                         multiHf ||
                         (hfViewTouched && effHfView !== 'default') ||
-                        shownHeader?.text ||
-                        shownHeader?.paras?.length ||
-                        hfImagesOf('header')?.length,
+                        hfHasVisibleContent(shownHeader, hfImagesOf('header')),
                       ) && (
                         <HeaderFooterArea
                           kind="header"
@@ -4560,6 +4838,16 @@ export function App() {
                           onCommit={(next) => commitHf('header', next)}
                           pageTotal={pageInfo.total}
                           style={edgeHeaderStyle}
+                          boxGeom={
+                            canvasSection && canvasBox
+                              ? {
+                                  ...hfStripGeom(canvasSection),
+                                  stripLeft: edgeHeaderStyle
+                                    ? twipsToPx(canvasSection.marginLeft)
+                                    : (paperW - canvasBox.contentWidth) / 2,
+                                }
+                              : undefined
+                          }
                         />
                       )}
                       <EditorContent editor={editor} />
@@ -4579,10 +4867,7 @@ export function App() {
                       {Boolean(
                         multiHf ||
                         (hfViewTouched && effHfView !== 'default') ||
-                        shownFooter?.text ||
-                        shownFooter?.pageNumber ||
-                        shownFooter?.paras?.length ||
-                        hfImagesOf('footer')?.length,
+                        hfHasVisibleContent(shownFooter, hfImagesOf('footer')),
                       ) && (
                         <HeaderFooterArea
                           kind="footer"
@@ -4593,6 +4878,16 @@ export function App() {
                           pageNo={lastPageNo?.text ?? pageInfo.total}
                           pageTotal={pageInfo.total}
                           style={edgeFooterStyle}
+                          boxGeom={
+                            lastSection && lastBox
+                              ? {
+                                  ...hfStripGeom(lastSection),
+                                  stripLeft: edgeFooterStyle
+                                    ? twipsToPx(lastSection.marginLeft)
+                                    : (paperW - lastBox.contentWidth) / 2,
+                                }
+                              : undefined
+                          }
                         />
                       )}
                       {(inkAnnotations.length > 0 || inkTool !== 'select') && !readMode && (
@@ -4650,6 +4945,7 @@ export function App() {
                 composing={commentComposing}
                 onSubmitNew={submitNewComment}
                 onReply={replyToComment}
+                onEdit={editComment}
                 onResolve={resolveComment}
                 onCancelNew={cancelNewComment}
                 onDelete={deleteComment}
@@ -4785,6 +5081,7 @@ export function App() {
       {doc && showPagePreview && section && (
         <PaginationPreview
           section={section}
+          canvasTop={canvasTop}
           sections={sections}
           delSectBreaks={delSectBreaks}
           hfParts={doc.parsed.hfParts ?? {}}
@@ -4812,6 +5109,7 @@ export function App() {
           sectionHfOverride={sectionHfOverride}
           comments={comments}
           anchorBlocks={doc.parsed.blocks}
+          revisionView={revisionDisplay === 'all' && viewMode === 'print' ? editor?.view : null}
           clearPageGaps={() => {
             // column-layout decorations stay: the preview measures with the block widths
             // (line boxes must keep column wrapping); transforms are neutralized by its

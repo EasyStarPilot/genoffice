@@ -295,6 +295,7 @@ export const nl = {
   appAiDone: 'AI is klaar',
   appAiTurnLimit:
     '(Limiet voor toolaanroepen voor deze aanvraag bereikt; het bovenstaande antwoord is gebaseerd op wat tot nu toe is gelezen en kan onvolledig zijn.)',
+  appAiTruncatedNote: '(Het antwoord is afgekapt door de lengtelimiet en is mogelijk onvolledig.)',
   appAiStopped: '(gestopt)',
   appAiNoSummary: 'AI is klaar zonder samenvatting.',
   appAiNoAction:
@@ -315,8 +316,18 @@ export const nl = {
     'Deze pictogramcombinatie kan niet worden opgeslagen als xlsx — kies een andere pictogramset.',
   appNeedFullLoadSort:
     'Sorteren, filteren, bereiken verplaatsen en tekst splitsen vereisen de volledig geladen modus — deze werkmap is te groot en wordt gedeeltelijk streamend geladen.',
+  appFullLoadFilterTitle: 'Filteren vereist volledig laden',
+  appFullLoadFilterBody:
+    'Deze werkmap is groot en slechts gedeeltelijk gestreamd. Filteren (inclusief waardetellingen) heeft de volledige gegevens nodig. De hele werkmap nu laden?',
+  appFullLoadStart: 'Alles laden',
+  appFullLoadRunning: 'De hele werkmap wordt geladen — filteren is beschikbaar zodra dit klaar is…',
+  appFullLoadTooLarge:
+    'Deze werkmap is te groot om volledig in het geheugen te laden; filteren is niet beschikbaar voor dit bestand.',
+  appDialogCancel: 'Annuleren',
   appPivotSheetNoMove:
     'Dit werkblad bevat een draaitabel — bereiken verplaatsen wordt nog niet ondersteund.',
+  appMergeOverTable:
+    'De selectie overlapt een Excel-tabel — cellen samenvoegen in een tabel wordt nog niet ondersteund.',
   appTableFilterNoEdit:
     'Het filter van dit werkblad hoort bij een Excel-tabel — de bewerking kan nog niet worden opgeslagen.',
   appAutofillStreaming:
@@ -582,6 +593,8 @@ export const nl = {
     'Wijzigingen aan gedefinieerde namen kunnen niet samen met rij-/kolom- of bladstructuurwijzigingen worden opgeslagen — sla in twee stappen op.',
   appSaveErrChangedOnDisk:
     'Het bestand is op schijf gewijzigd door een ander programma — opslaan afgebroken; open het bestand opnieuw en probeer het nog eens.',
+  appSaveErrTargetLocked:
+    'Het bestand kon niet worden vervangen — het lijkt vergrendeld door een ander programma (geopend in Excel, of wordt gescand/gesynchroniseerd). Sluit het daar en sla opnieuw op.',
   appSaveErrStylesheetLimited:
     'Het stylesheet van deze werkmap mist de basisstructuur; stijlwijzigingen kunnen niet worden opgeslagen.',
   appSaveErrPackageGuard:
@@ -674,6 +687,8 @@ export const nl = {
   appTabFormulas: 'Formules',
   appTabData: 'Gegevens',
   appTabReview: 'Controleren',
+  appRibbonCollapse: 'Het lint samenvouwen',
+  appRibbonPin: 'Het lint vastmaken',
   appTabView: 'Beeld',
   appTabAi: 'AI',
   appTabChartDesign: 'Grafiekontwerp',

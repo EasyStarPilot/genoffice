@@ -13,6 +13,8 @@ export const ja = {
   ribbonTabLayout: 'レイアウト',
   ribbonTabReferences: '参考資料',
   ribbonTabReview: '校閲',
+  ribbonCollapse: 'リボンを折りたたむ',
+  ribbonPin: 'リボンの固定',
   ribbonTabView: '表示',
   ribbonTabTableDesign: 'テーブル デザイン',
   ribbonTabTableLayout: 'テーブル レイアウト',
@@ -158,6 +160,10 @@ export const ja = {
   ribbonOuterBordersTip: '選択範囲の外側のみに罫線を追加',
   ribbonInnerBorders: '内側の罫線',
   ribbonInnerBordersTip: '選択範囲の内側のみに罫線を追加',
+  ribbonTableInsideHBorders: 'Inside Horizontal',
+  ribbonTableInsideHBordersTip: 'Inside horizontal borders for the whole table',
+  ribbonTableInsideVBorders: 'Inside Vertical',
+  ribbonTableInsideVBordersTip: 'Inside vertical borders for the whole table',
   ribbonClearBordersTip: '選択したセルの罫線をクリア',
   ribbonBorderColor: '罫線の色',
   ribbonBorderWidth: '罫線の太さ',
@@ -305,6 +311,8 @@ export const ja = {
   ribbonChartAddSeries: '+ 系列',
   // Hyperlink dialog
   ribbonLinkInsertTitle: 'ハイパーリンクの挿入',
+  ribbonLinkEditTitle: 'ハイパーリンクの編集',
+  ribbonLinkRemove: 'リンクの削除',
   ribbonLinkText: '表示文字列',
   ribbonLinkTextPh: 'リンクの文字列(空欄の場合はアドレスを表示)',
   ribbonLinkAddress: 'アドレス',
@@ -590,6 +598,8 @@ export const ja = {
   ribbonEditorPrompt:
     '文書全体を校正してください：誤字、句読点、文法の誤りを修正し、元の意味と段落構成は変えないでください。',
   ribbonGroupProofing: '文章校正',
+  ribbonSpellcheckBtn: 'スペルチェック',
+  ribbonSpellcheckTip: '入力時にスペルをチェックし、誤りの可能性がある単語に赤い波線を表示します',
   ribbonTranslate: '翻訳',
   ribbonTranslateTip: 'AI がドキュメントを翻訳',
   ribbonTranslatePrompt:

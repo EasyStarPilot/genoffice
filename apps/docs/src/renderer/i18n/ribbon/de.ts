@@ -12,6 +12,8 @@ export const de = {
   ribbonTabLayout: 'Layout',
   ribbonTabReferences: 'Referenzen',
   ribbonTabReview: 'Überprüfen',
+  ribbonCollapse: 'Menüband reduzieren',
+  ribbonPin: 'Menüband anheften',
   ribbonTabView: 'Ansicht',
   ribbonTabTableDesign: 'Tabellenentwurf',
   ribbonTabTableLayout: 'Tabellenlayout',
@@ -151,6 +153,10 @@ export const de = {
   ribbonOuterBordersTip: 'Rahmenlinien nur am äußeren Rand der Auswahl',
   ribbonInnerBorders: 'Rahmenlinien innen',
   ribbonInnerBordersTip: 'Rahmenlinien nur innerhalb der Auswahl',
+  ribbonTableInsideHBorders: 'Inside Horizontal',
+  ribbonTableInsideHBordersTip: 'Inside horizontal borders for the whole table',
+  ribbonTableInsideVBorders: 'Inside Vertical',
+  ribbonTableInsideVBordersTip: 'Inside vertical borders for the whole table',
   ribbonClearBordersTip: 'Rahmenlinien der ausgewählten Zellen entfernen',
   ribbonBorderColor: 'Rahmenfarbe',
   ribbonBorderWidth: 'Rahmenstärke',
@@ -296,6 +302,8 @@ export const de = {
   ribbonChartAddCategory: '+ Kategorie',
   ribbonChartAddSeries: '+ Reihe',
   ribbonLinkInsertTitle: 'Link einfügen',
+  ribbonLinkEditTitle: 'Hyperlink bearbeiten',
+  ribbonLinkRemove: 'Link entfernen',
   ribbonLinkText: 'Anzuzeigender Text',
   ribbonLinkTextPh: 'Linktext (leer lassen, um die Adresse anzuzeigen)',
   ribbonLinkAddress: 'Adresse',
@@ -577,6 +585,9 @@ export const de = {
   ribbonEditorPrompt:
     'Korrigiere das gesamte Dokument: Behebe Tippfehler, Zeichensetzungs- und Grammatikfehler, ohne Sinn und Absatzstruktur zu verändern.',
   ribbonGroupProofing: 'Dokumentprüfung',
+  ribbonSpellcheckBtn: 'Rechtschreibung',
+  ribbonSpellcheckTip:
+    'Rechtschreibung während der Eingabe prüfen — unterstreicht mögliche Fehler rot',
   ribbonTranslate: 'Übersetzen',
   ribbonTranslateTip: 'KI übersetzt das Dokument',
   ribbonTranslatePrompt:

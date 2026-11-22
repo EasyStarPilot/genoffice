@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAutoSavePref } from '@genoffice/ui'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { FindPanel, type FindFocusRequest, type FindPanelStrings } from '@genoffice/ui'
 import type { Editor } from '@tiptap/core'
 import { useI18n } from './i18n/locale'
 import {
@@ -11,6 +13,7 @@ import {
   type DocEnvelope,
 } from './markdown/docText'
 import { buildExtensions } from './editor/extensions'
+import { tiptapFindTarget } from './editor/findTarget'
 import { buildSlashItems } from './editor/slashCommand'
 import type { SlashController, SlashMenuState } from './editor/slashCommand'
 import { setImageBaseDir } from './editor/localImage'
@@ -27,8 +30,10 @@ import { DOCX_MAX_IMAGE_PX, exportDocxBytes } from './export/docxExport'
 import { exportOdtBytes } from './export/odtExport'
 import { splitIntoSlides } from './export/odpExport'
 import { buildPrintHtml } from './export/printHtml'
+import { mermaidSvgToPng, renderMermaid } from './editor/mermaid'
 import { resolveImageSrc } from './editor/localImage'
 import type { ExportFormat, SaveMode } from '../shared/ipc'
+import { uiOp } from './editor/ops'
 
 type LoadStatus = 'loading' | 'ready' | 'error'
 type SaveState = 'idle' | 'saving' | 'saved' | 'failed'
@@ -128,7 +133,9 @@ export default function App() {
   const editQueueRef = useRef(editQueue)
   editQueueRef.current = editQueue
   const queueSeqRef = useRef(0)
-  const [autoSave, setAutoSave] = useState(() => localStorage.getItem('mdapp.autoSave') === '1')
+  const [autoSave, setAutoSave] = useAutoSavePref('mdapp.autoSave', window.markdownApi)
+  const [showFind, setShowFind] = useState(false)
+  const [findFocus, setFindFocus] = useState<FindFocusRequest>({ field: 'find', nonce: 0 })
   const [zoom, setZoom] = useState(100)
 
   const statusRef = useRef<LoadStatus>('loading')
@@ -161,7 +168,7 @@ export default function App() {
     void (async () => {
       const relPath = await window.markdownApi.pickImage()
       const current = editorRef.current
-      if (relPath && current) current.chain().focus().setImage({ src: relPath }).run()
+      if (relPath && current) uiOp(current, { op: 'insertImage', after: 'selection', src: relPath })
     })()
   }, [])
 
@@ -191,6 +198,7 @@ export default function App() {
   })
   editorRef.current = editor
   filePathRef.current = filePath
+  const findTarget = useMemo(() => (editor ? tiptapFindTarget(editor) : null), [editor])
 
   useEffect(() => {
     setImageBaseDir(filePath ? dirOf(filePath) : null)
@@ -336,7 +344,11 @@ export default function App() {
         if (!result.ok) console.error('[markdown] odt export failed:', result.error)
         return
       }
-      const bytes = await exportDocxBytes(current.getJSON(), loadImage)
+      const renderDiagram = async (source: string) => {
+        const result = await renderMermaid(source)
+        return result.ok ? mermaidSvgToPng(result.svg, DOCX_MAX_IMAGE_PX) : null
+      }
+      const bytes = await exportDocxBytes(current.getJSON(), loadImage, renderDiagram)
       const result = await window.markdownApi.exportDocx({
         base64: bytesToBase64(bytes),
         suggestedName,
@@ -406,6 +418,12 @@ export default function App() {
     }
   }, [runExport, printDoc])
 
+  const openFind = useCallback((replace: boolean) => {
+    if (statusRef.current !== 'ready') return
+    setShowFind(true)
+    setFindFocus((f) => ({ field: replace ? 'replace' : 'find', nonce: f.nonce + 1 }))
+  }, [])
+
   useEffect(() => {
     const offSave = window.markdownApi.onSaveRequest(
       (mode) => void doSave(mode).then((ok) => window.markdownApi.sendSaveRequestAck(ok)),
@@ -438,6 +456,13 @@ export default function App() {
       } else if (key === 'p' && !event.shiftKey) {
         event.preventDefault()
         void printDoc()
+      } else if (key === 'f' && !event.shiftKey) {
+        event.preventDefault()
+        openFind(false)
+      } else if (key === 'h' && !event.shiftKey) {
+        // Word's replace shortcut; macOS Cmd+H is the system hide role and never reaches here
+        event.preventDefault()
+        openFind(true)
       } else if (key === '=' || key === '+') {
         event.preventDefault()
         zoomIn()
@@ -456,7 +481,7 @@ export default function App() {
       offRenamed()
       window.removeEventListener('keydown', onKeyDown, true)
     }
-  }, [doSave, printDoc, zoomIn, zoomOut])
+  }, [doSave, printDoc, zoomIn, zoomOut, openFind])
 
   // Chromium reports trackpad pinch as ctrl+wheel. Also support Cmd/Ctrl+scroll
   // while the pointer is over the document canvas.
@@ -470,10 +495,6 @@ export default function App() {
     window.addEventListener('wheel', onWheel, { passive: false })
     return () => window.removeEventListener('wheel', onWheel)
   }, [])
-
-  useEffect(() => {
-    localStorage.setItem('mdapp.autoSave', autoSave ? '1' : '0')
-  }, [autoSave])
 
   useEffect(() => {
     localStorage.setItem('mdapp.showAi', aiOpen ? '1' : '0')
@@ -593,6 +614,19 @@ export default function App() {
             ? t('savedOk')
             : ''
 
+  const findStrings: FindPanelStrings = {
+    findPlaceholder: t('findPlaceholder'),
+    replacePlaceholder: t('replacePlaceholder'),
+    matchCase: t('matchCase'),
+    wholeWord: t('wholeWord'),
+    noResults: t('noResults'),
+    prevMatch: t('prevMatch'),
+    nextMatch: t('nextMatch'),
+    closeEsc: t('closeEsc'),
+    replace: t('replace'),
+    replaceAll: t('replaceAll'),
+  }
+
   if (status === 'error') {
     return (
       <div className="app">
@@ -608,6 +642,7 @@ export default function App() {
         disabled={status !== 'ready'}
         dirty={dirty}
         onSave={() => void doSave('save')}
+        onFind={() => openFind(false)}
         autoSave={autoSave}
         onToggleAutoSave={setAutoSave}
         imageEnabled={Boolean(filePath)}
@@ -651,6 +686,14 @@ export default function App() {
           )}
         </div>
         <div className="app-content">
+          {showFind && findTarget && (
+            <FindPanel
+              target={findTarget}
+              strings={findStrings}
+              onClose={() => setShowFind(false)}
+              focusRequest={findFocus}
+            />
+          )}
           <div className="editor-scroll" ref={scrollRef}>
             <div className="doc-page" style={{ zoom: zoom / 100 }}>
               {fmOpen && <FrontmatterPanel value={fmText} onChange={onFrontmatterChange} />}
@@ -668,7 +711,7 @@ export default function App() {
               <button
                 type="button"
                 className="zoom-btn"
-                aria-label="Zoom out"
+                aria-label={t('zoomOut')}
                 onClick={zoomOut}
                 disabled={zoom <= MIN_ZOOM}
               >
@@ -681,13 +724,13 @@ export default function App() {
                 max={MAX_ZOOM}
                 step={ZOOM_STEP}
                 value={Math.round(zoom)}
-                aria-label="Zoom"
+                aria-label={t('zoom')}
                 onChange={(event) => setZoom(Number(event.target.value))}
               />
               <button
                 type="button"
                 className="zoom-btn"
-                aria-label="Zoom in"
+                aria-label={t('zoomIn')}
                 onClick={zoomIn}
                 disabled={zoom >= MAX_ZOOM}
               >

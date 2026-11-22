@@ -73,9 +73,35 @@ export function formatGeneral(value: number, budget: number): string {
   return toScientific(value, 0)
 }
 
+const CURRENCY_LCID_TAG = /\[\$([^\]-]+)-[^\]]*\]/g
+const EMPTY_CURRENCY_TAG = /\[\$\]/g
+
+/// Excel accepts `[$]` (no symbol, no locale) as a token that prints
+/// nothing; numfmt rejects the pattern and returns its `######` error text.
+function dropEmptyCurrency(pattern: string): string {
+  return pattern.replace(EMPTY_CURRENCY_TAG, '')
+}
+
+/**
+ * `[$sym-LCID]` picks the currency symbol only; Excel keeps the thousands
+ * and decimal separators of the host locale (an EN machine prints
+ * `R$ 62,175` for `[$R$-416]`). numfmt lets the tag's locale override the
+ * `locale` option, so drop the LCID and keep the symbol. Bare `[$-LCID]`
+ * tags and date patterns keep theirs: the locale legitimately picks the
+ * month/day names there.
+ */
+export function hostLocalePattern(pattern: string): string {
+  const base = dropEmptyCurrency(pattern)
+  const stripped = base.replace(CURRENCY_LCID_TAG, '[$$$1]')
+  if (stripped === base) return base
+  const type = patternType(base)
+  if (type === 'date' || type === 'datetime' || type === 'time') return base
+  return stripped
+}
+
 function safeFormat(pattern: string, value: number | string): string | null {
   try {
-    return numfmt.format(pattern, value, { nbsp: true, throws: false })
+    return numfmt.format(hostLocalePattern(pattern), value, { nbsp: true, throws: false })
   } catch {
     return null
   }
@@ -322,7 +348,7 @@ export function isCalendarDatePattern(pattern: string): boolean {
   let isDate = datePatternCache.get(pattern)
   if (isDate === undefined) {
     try {
-      const type = (numfmt.getFormatInfo(pattern) as { type?: string }).type
+      const type = (numfmt.getFormatInfo(dropEmptyCurrency(pattern)) as { type?: string }).type
       isDate = type === 'date' || type === 'datetime'
     } catch {
       isDate = false
@@ -338,7 +364,8 @@ function patternType(pattern: string): string {
   let type = patternTypeCache.get(pattern)
   if (type === undefined) {
     try {
-      type = (numfmt.getFormatInfo(pattern) as { type?: string }).type ?? 'unknown'
+      type =
+        (numfmt.getFormatInfo(dropEmptyCurrency(pattern)) as { type?: string }).type ?? 'unknown'
     } catch {
       type = 'unknown'
     }
@@ -448,6 +475,12 @@ export const EXCEL_DIGIT_PER_PT: Record<string, number> = {
   'MS PMincho': 8 / 11,
   'ＭＳ 明朝': 8 / 11,
   'MS Mincho': 8 / 11,
+  // Meiryo digits are 0.621em (Verdana design) → 9.1px at 11pt; the ja prod
+  // ref grid (B:H) fits MDW 9, while the CJK-name fallback's 8
+  // narrows every column 11%. Meiryo UI keeps the same Latin advances.
+  メイリオ: 9 / 11,
+  Meiryo: 9 / 11,
+  'Meiryo UI': 9 / 11,
   // GB/Big5 legacy faces share the em/2 digit advance.
   宋体: 8 / 11,
   SimSun: 8 / 11,
@@ -560,10 +593,11 @@ export function excelWidthScale(
  * Returns the corrected display text, or null to leave the cell alone.
  */
 export function fixFormattedValue(
-  pattern: string,
+  rawPattern: string,
   raw: string | number,
   displayed: string | number | boolean | undefined,
 ): string | null {
+  const pattern = dropEmptyCurrency(rawPattern)
   if (typeof raw === 'string') {
     // Excel applies number formats to numbers only, but Univer's NUMFMT
     // coerces numeric-looking text (checkCellValueType lets isRealNum win
@@ -599,6 +633,8 @@ export function fixFormattedValue(
   ) {
     return text
   }
+  // Univer formatted with the LCID's separators (or rejected `[$]`); ours follow the host locale.
+  if (hostLocalePattern(rawPattern) !== rawPattern && text !== String(displayed ?? '')) return text
   return null
 }
 

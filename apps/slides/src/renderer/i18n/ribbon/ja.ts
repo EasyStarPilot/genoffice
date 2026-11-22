@@ -14,6 +14,8 @@ export const ja = {
   ribbonTabAnimations: 'アニメーション',
   ribbonTabSlideShow: 'スライドショー',
   ribbonTabReview: '校閲',
+  ribbonCollapse: 'リボンを折りたたむ',
+  ribbonPin: 'リボンの固定',
   ribbonTabView: '表示',
   ribbonTabTableDesign: 'テーブルデザイン',
   ribbonTabChartDesign: 'グラフのデザイン',
@@ -518,6 +520,9 @@ export const ja = {
   ribbonGroupSize: 'サイズ',
   ribbonCrop: 'トリミング',
   ribbonCropTip: '画像をトリミング（ハンドルをドラッグ、Enter で確定）',
+  ribbonReplacePicture: '図の変更',
+  ribbonRotateLeft: '左へ 90° 回転',
+  ribbonRotateRight: '右へ 90° 回転',
   // Insert dialogs
   ribbonDlgHyperlink: 'ハイパーリンク',
   ribbonDlgWebAddress: 'Web アドレス',
