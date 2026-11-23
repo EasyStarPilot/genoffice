@@ -47,26 +47,26 @@ export interface Pdfium {
   _FPDFText_SetText(textObj: number, text: number): number
   _FPDFPage_CountObjects(page: number): number
   _FPDFPage_GetObject(page: number, index: number): number
-  _FPDFPage_RemoveObject(page: number, obj: number): number
+  _FPDFPageObj_CreateNewRect(left: number, bottom: number, right: number, top: number): number
   _FPDFPage_InsertObject(page: number, obj: number): void
   _FPDFPage_InsertObjectAtIndex?(page: number, obj: number, index: number): number
   _FPDFPage_GenerateContent(page: number): number
-  _FPDFPageObj_GetType(obj: number): number
-  _FPDFPageObj_Destroy(obj: number): void
+  _FPDFPageObj_GetType(obj: number): number;
+  _FPDFPageObj_Destroy(obj: number): void;
+  _FPDFPageObj_GetMatrix(obj: number, matrix: number): number;
+  _FPDFPageObj_SetMatrix(obj: number, matrix: number): number;
+  _FPDFPageObj_GetFillColor(obj: number, r: number, g: number, b: number, a: number): number;
+  _FPDFPageObj_SetFillColor(obj: number, r: number, g: number, b: number, a: number): number;
   _FPDFPageObj_GetBounds(obj: number, l: number, b: number, r: number, t: number): number
-  _FPDFPageObj_GetMatrix(obj: number, matrix: number): number
-  _FPDFPageObj_SetMatrix(obj: number, matrix: number): number
-  _FPDFPageObj_GetFillColor(obj: number, r: number, g: number, b: number, a: number): number
-  _FPDFPageObj_SetFillColor(obj: number, r: number, g: number, b: number, a: number): number
-  _FPDFPageObj_CreateTextObj(doc: number, font: number, size: number): number
-  _FPDFTextObj_GetText(obj: number, textPage: number, buf: number, len: number): number
-  _FPDFTextObj_GetFont(obj: number): number
-  _FPDFTextObj_GetFontSize(obj: number, size: number): number
-  _FPDFFont_GetIsEmbedded(font: number): number
-  _FPDFFont_GetFontData(font: number, buffer: number, buflen: number, outBuflen: number): number
-  _FPDFFont_GetGlyphWidth(font: number, glyph: number, fontSize: number, width: number): number
-  _FPDFFont_GetBaseFontName(font: number, buffer: number, buflen: number): number
-  _FPDFFont_GetFamilyName(font: number, buffer: number, buflen: number): number
+  _FPDFPageObj_CreateTextObj(doc: number, font: number, size: number): number;
+  _FPDFTextObj_GetText(obj: number, textPage: number, buf: number, len: number): number;
+  _FPDFTextObj_GetFont(obj: number): number;
+  _FPDFTextObj_GetFontSize(obj: number, size: number): number;
+  _FPDFFont_GetIsEmbedded(font: number): number;
+  _FPDFFont_GetFontData(font: number, buffer: number, buflen: number, outBuflen: number): number;
+  _FPDFFont_GetGlyphWidth(font: number, glyph: number, fontSize: number, width: number): boolean;
+  _FPDFFont_GetBaseFontName(font: number, buffer: number, buflen: number): number;
+  _FPDFFont_GetFamilyName(font: number, buffer: number, buflen: number): number;
   _FPDFPageObj_Transform(
     obj: number,
     a: number,
@@ -75,7 +75,15 @@ export interface Pdfium {
     d: number,
     e: number,
     f: number,
-  ): void
+  ): void;
+  _FPDFPageObj_SetStrokeColor(obj: number, r: number, g: number, b: number, a: number): void;
+  _FPDFPageObj_SetStrokeWidth(obj: number, width: number): void;
+  _FPDFPageObj_SetClipPath(obj: number, clipPath: number, fillMode: number, stroke: boolean): void;
+  _FPDFPageObj_CreateClipPath(obj: number, left: number, bottom: number, right: number, top: number): number;
+  _FPDFPageObj_DestroyClipPath(clipPath: number): void;
+  _FPDFPage_RemoveObject(page: number, obj: number): number;
+  _FPDFFont_GetAscent(font: number, size: number, outPtr: number): boolean;
+  _FPDFFont_GetDescent(font: number, size: number, outPtr: number): boolean;
   _FPDFPageObj_NewImageObj(doc: number): number
   _FPDFImageObj_SetBitmap(pages: number, count: number, obj: number, bitmap: number): number
   _FPDFImageObj_GetRenderedBitmap(doc: number, page: number, obj: number): number
@@ -1485,6 +1493,7 @@ async function rebuildRun(
   const matPtr = m._malloc(24)
   const sizePtr = m._malloc(4)
   const colPtr = m._malloc(16)
+  const rectPtr = m._malloc(16)
   const widthPtr = m._malloc(4)
   try {
     m._FPDFPageObj_GetMatrix(anchor.obj, matPtr)
@@ -1637,23 +1646,43 @@ async function rebuildRun(
       const textPtr = utf16Ptr(m, text)
       const ok = m._FPDFText_SetText(newObj, textPtr)
       m._free(textPtr)
-      if (!ok) {
-        m._FPDFPageObj_Destroy(newObj)
-        throw new Error('FPDFText_SetText failed on rebuilt object')
-      }
       const lineMatrix = [...matrix]
       lineMatrix[4] = x
       lineMatrix[5] = y
       m.HEAPF32.set(lineMatrix, matPtr >> 2)
       m._FPDFPageObj_SetMatrix(newObj, matPtr)
-      const c = style?.background
-        ? [style.background[0]!, style.background[1]!, style.background[2]!, 255]
-        : style?.color
-          ? [style.color[0]!, style.color[1]!, style.color[2]!, 255]
-          : color
-      m._FPDFPageObj_SetFillColor(newObj, c[0]!, c[1]!, c[2]!, c[3]!)
+      const ink = style?.color
+        ? [style.color[0]!, style.color[1]!, style.color[2]!, 255]
+        : color
+      m._FPDFPageObj_SetFillColor(newObj, ink[0]!, ink[1]!, ink[2]!, ink[3]!)
       newObjs.push(newObj)
       segAnchors.push(lastKeptObj)
+      // A highlight is a fill behind the glyphs, not the text ink: painting the
+      // background as the text fill made the run invisible. Draw a rect object first
+      // (it lands before the text in the content stream) so the highlight shows.
+      if (style?.background) {
+        const bg = [style.background[0]!, style.background[1]!, style.background[2]!, 255]
+        let w = 0
+        for (const ch of text) {
+          const a = advancePt(ch.codePointAt(0)!, style)
+          if (a === null) break
+          w += a
+        }
+        const f = fontFor(style)
+        const size = sizeOf(style)
+        const asc = m._FPDFFont_GetAscent(f, size, widthPtr) ? m.HEAPF32[widthPtr >> 2]! : 0
+        const desc = m._FPDFFont_GetDescent(f, size, widthPtr) ? -m.HEAPF32[widthPtr >> 2]! : 0
+        const pad = size * 0.05
+        const rect = m._FPDFPageObj_CreateNewRect(
+          x - pad,
+          y - desc * size - pad,
+          x + w + pad,
+          y + asc * size + pad,
+        )
+        m._FPDFPageObj_SetFillColor(rect, bg[0]!, bg[1]!, bg[2]!, bg[3]!)
+        m._FPDFPageObj_SetMatrix(rect, matPtr)
+        newObjs.push(rect)
+      }
     }
 
     // Full redraw: one text object per line (several when selection styles split
